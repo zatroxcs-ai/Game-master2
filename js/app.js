@@ -426,6 +426,205 @@ function triggerChestAnimation(newCardId) {
 }
 
 // Placeholders pour les fonctions non implémentées complètement (Relations, Quests)
-function renderRelationsModule(c) { c.innerHTML = '<p>Matrice des relations (TODO)</p>'; }
-function renderQuestsModule(c) { c.innerHTML = '<p>Gestion des quêtes (TODO)</p>'; }
-function renderPlayerQuests(c, p) { c.innerHTML = '<p>Aucune quête active.</p>'; }
+// MODULE: RELATIONS (Matrice)
+function renderRelationsModule(container) {
+    container.innerHTML = '<h2>Matrice des Relations</h2><p class="hint">Cliquez sur une case pour changer la relation.</p>';
+    
+    // On combine Joueurs et PNJ pour la matrice
+    const entities = [...gameData.players, ...gameData.npcs];
+    if(entities.length === 0) return container.innerHTML += '<p>Aucune entité (Joueur ou PNJ) créée.</p>';
+
+    // Création de la grille CSS dynamique
+    const matrix = document.createElement('div');
+    matrix.className = 'relation-matrix';
+    // +1 pour l'entête des lignes
+    matrix.style.gridTemplateColumns = `repeat(${entities.length + 1}, 1fr)`;
+
+    // 1. Case vide (coin haut gauche)
+    const corner = document.createElement('div');
+    corner.className = 'rel-cell rel-header';
+    corner.innerText = 'X';
+    matrix.appendChild(corner);
+
+    // 2. En-têtes (Colonnes)
+    entities.forEach(e => {
+        const header = document.createElement('div');
+        header.className = 'rel-cell rel-header';
+        header.innerText = e.name.substring(0, 3).toUpperCase(); // 3 premières lettres
+        header.title = e.name;
+        matrix.appendChild(header);
+    });
+
+    // 3. Lignes
+    entities.forEach(source => {
+        // En-tête Ligne
+        const rowHead = document.createElement('div');
+        rowHead.className = 'rel-cell rel-header';
+        rowHead.innerText = source.name;
+        matrix.appendChild(rowHead);
+
+        // Cellules
+        entities.forEach(target => {
+            const cell = document.createElement('div');
+            cell.className = 'rel-cell';
+            
+            // Auto-relation (diagonale grise)
+            if (source.id === target.id) {
+                cell.style.background = '#ccc';
+            } else {
+                // Chercher la relation existante
+                const rel = gameData.relations.find(r => r.source === source.id && r.target === target.id);
+                const status = rel ? rel.status : 'neutral';
+                
+                // Styling
+                cell.className = `rel-cell rel-${status}`; // ex: rel-friendly
+                cell.innerText = getRelIcon(status);
+                cell.style.cursor = 'pointer';
+
+                // Click event : Cycle des états
+                cell.onclick = () => {
+                    cycleRelation(source.id, target.id, status);
+                };
+            }
+            matrix.appendChild(cell);
+        });
+    });
+
+    container.appendChild(matrix);
+    
+    // Légende
+    const legend = document.createElement('div');
+    legend.style.marginTop = '10px';
+    legend.innerHTML = `
+        <span class="rel-cell rel-neutral">😐 Neutre</span>
+        <span class="rel-cell rel-friendly">🙂 Ami</span>
+        <span class="rel-cell rel-hostile">😡 Hostile</span>
+        <span class="rel-cell" style="background:#cce5ff">🛡️ Allié</span>
+    `;
+    container.appendChild(legend);
+}
+
+// Helper pour les icônes
+function getRelIcon(status) {
+    if(status === 'friendly') return '🙂';
+    if(status === 'hostile') return '😡';
+    if(status === 'ally') return '🛡️';
+    return '😐';
+}
+
+// Logique de changement d'état
+function cycleRelation(sId, tId, currentStatus) {
+    const states = ['neutral', 'friendly', 'hostile', 'ally'];
+    const nextIndex = (states.indexOf(currentStatus) + 1) % states.length;
+    const nextStatus = states[nextIndex];
+
+    // Mise à jour ou Création dans gameData
+    const existingIndex = gameData.relations.findIndex(r => r.source === sId && r.target === tId);
+    if (existingIndex >= 0) {
+        gameData.relations[existingIndex].status = nextStatus;
+    } else {
+        gameData.relations.push({ source: sId, target: tId, status: nextStatus });
+    }
+    
+    saveData(); // Sauvegarde et refresh
+}
+// MODULE: QUÊTES (Vue MJ)
+function renderQuestsModule(container) {
+    // Formulaire de création
+    const formPanel = document.createElement('div');
+    formPanel.className = 'panel';
+    formPanel.innerHTML = `<h3>Nouvelle Quête</h3>`;
+    
+    // Sélecteur de joueurs
+    let playerOptions = gameData.players.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    
+    formPanel.innerHTML += `
+        <div style="display:grid; gap:10px; text-align:left">
+            <input type="text" id="q-title" placeholder="Titre de la quête">
+            <input type="text" id="q-reward" placeholder="Récompense (ex: 500 Or)">
+            <select id="q-assign">${playerOptions}</select>
+            <button id="btn-add-quest" class="btn btn-secondary">Publier la Quête</button>
+        </div>
+    `;
+    container.appendChild(formPanel);
+
+    // Liste des quêtes actives
+    const list = document.createElement('div');
+    list.style.marginTop = '20px';
+    list.innerHTML = '<h3>Quêtes en cours</h3>';
+
+    gameData.quests.forEach((q, index) => {
+        const item = document.createElement('div');
+        item.className = 'panel';
+        item.style.marginBottom = '10px';
+        item.style.textAlign = 'left';
+        
+        // Trouver le nom du joueur assigné
+        const assignedPlayer = gameData.players.find(p => p.id === q.assignedTo);
+        const pName = assignedPlayer ? assignedPlayer.name : 'Inconnu';
+
+        item.innerHTML = `
+            <div style="display:flex; justify-content:space-between">
+                <strong>${q.title}</strong>
+                <span style="color:var(--cr-blue)">Pour: ${pName}</span>
+            </div>
+            <p>💰 ${q.reward}</p>
+            <div style="text-align:right">
+                <button class="btn" style="background:red; font-size:0.7rem" onclick="deleteQuest(${index})">Supprimer</button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+
+    container.appendChild(list);
+
+    // Event Listener pour le bouton ajouter
+    // (Note: on utilise setTimeout pour s'assurer que l'élément est dans le DOM)
+    setTimeout(() => {
+        document.getElementById('btn-add-quest').onclick = () => {
+            const title = document.getElementById('q-title').value;
+            const reward = document.getElementById('q-reward').value;
+            const assignedTo = document.getElementById('q-assign').value;
+
+            if(title && assignedTo) {
+                gameData.quests.push({
+                    id: generateId(), title, reward, assignedTo, status: 'active'
+                });
+                saveData(`Nouvelle quête : ${title}`);
+            }
+        };
+    }, 0);
+}
+
+// Helper global pour supprimer (attaché à window pour le onclick HTML)
+window.deleteQuest = (index) => {
+    if(confirm('Supprimer cette quête ?')) {
+        gameData.quests.splice(index, 1);
+        saveData();
+    }
+};
+
+// MODULE: QUÊTES (Vue Joueur)
+function renderPlayerQuests(container, player) {
+    const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
+    
+    container.innerHTML = '<h2>Mes Quêtes</h2>';
+    
+    if (myQuests.length === 0) {
+        container.innerHTML += '<p style="opacity:0.6; margin-top:50px;">Aucune quête active. Reposez-vous, aventurier.</p>';
+        return;
+    }
+
+    myQuests.forEach(q => {
+        const card = document.createElement('div');
+        card.className = 'panel';
+        card.style.marginBottom = '15px';
+        card.style.borderLeft = '5px solid var(--cr-gold)';
+        card.innerHTML = `
+            <h3>${q.title}</h3>
+            <p>Récompense : <strong>${q.reward}</strong></p>
+            <p style="font-size:0.8rem; color:green">En cours...</p>
+        `;
+        container.appendChild(card);
+    });
+}
