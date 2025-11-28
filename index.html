@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manager Royale - VTT</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div id="login-screen" class="screen active">
+        <div class="panel">
+            <h1>Manager Royale</h1>
+            <div class="form-group">
+                <label>Nom de la Session (ID)</label>
+                <input type="text" id="session-input" placeholder="ex: partie-1">
+            </div>
+            <div class="btn-group">
+                <button id="btn-create-dm" class="btn btn-primary">Créer (MJ)</button>
+                <button id="btn-join-dm" class="btn btn-secondary">Rejoindre (MJ)</button>
+            </div>
+            <p class="hint">Les joueurs doivent scanner le QR Code du MJ.</p>
+        </div>
+    </div>
+
+    <div id="dm-screen" class="screen">
+        <header>
+            <div class="logo">👑 Manager Royale <span id="session-display"></span></div>
+            <nav id="dm-nav">
+                <button data-tab="map" class="active">Carte</button>
+                <button data-tab="players">Joueurs & PNJ</button>
+                <button data-tab="chat">Chat</button>
+                <button data-tab="cards">Cartes & Items</button>
+                <button data-tab="relations">Relations</button>
+                <button data-tab="quests">Quêtes</button>
+                <button data-tab="journal">Journal</button>
+            </nav>
+            <button id="btn-show-qr" class="btn-icon">📱 QR</button>
+        </header>
+
+        <main id="dm-content">
+            </main>
+    </div>
+
+    <div id="player-screen" class="screen">
+        <header>
+            <span id="player-name-display">Joueur</span>
+            <div class="resources-bar" id="player-resources"></div>
+        </header>
+        
+        <main id="player-content">
+            </main>
+
+        <nav id="player-nav">
+            <button data-tab="p-stats" class="active">Stats</button>
+            <button data-tab="p-map">Carte</button>
+            <button data-tab="p-chat">Chat</button>
+            <button data-tab="p-quests">Quêtes</button>
+            <button data-tab="p-journal">Journal</button>
+        </nav>
+    </div>
+
+    <div id="modal-qr" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Rejoindre la partie</h3>
+            <div id="qrcode"></div>
+            <p>Scannez pour rejoindre en tant que Joueur</p>
+        </div>
+    </div>
+
+    <div id="chest-overlay" class="overlay hidden">
+        <div class="chest-anim-container">
+            <div class="light-burst"></div>
+            <img src="https://cdna.artstation.com/p/assets/images/images/019/918/398/original/alexander-carlsson-chest-legendary-01.gif" class="chest-img">
+            <div class="card-pop">
+                <h2>NOUVELLE CARTE !</h2>
+                <div id="new-card-display"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
