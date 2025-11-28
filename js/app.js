@@ -86,6 +86,64 @@ function setupEventListeners() {
 
 // --- LOGIC ---
 
+// --- SYSTEME DE MODALE DYNAMIQUE ---
+let currentFormCallback = null;
+
+function openFormModal(title, fields, onSave) {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    document.getElementById('form-title').innerText = title;
+    container.innerHTML = ''; // Reset
+
+    fields.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.innerText = f.label;
+        div.appendChild(label);
+
+        let input;
+        if (f.type === 'select') {
+            input = document.createElement('select');
+            f.options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.innerText = opt.label;
+                if(opt.value === f.value) option.selected = true;
+                input.appendChild(option);
+            });
+        } else if (f.type === 'textarea') {
+            input = document.createElement('textarea');
+            input.rows = 3;
+            input.value = f.value || '';
+        } else {
+            input = document.createElement('input');
+            input.type = f.type || 'text';
+            input.value = f.value || '';
+        }
+        
+        input.id = `field-${f.name}`;
+        div.appendChild(input);
+        container.appendChild(div);
+    });
+
+    currentFormCallback = onSave;
+    modal.style.display = 'flex';
+
+    // Gestion fermeture
+    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
+    document.getElementById('btn-form-save').onclick = () => {
+        const result = {};
+        fields.forEach(f => {
+            const el = document.getElementById(`field-${f.name}`);
+            result[f.name] = el.value;
+        });
+        currentFormCallback(result);
+        modal.style.display = 'none';
+    };
+}
+
 async function connectToSession(sid) {
     const exists = await joinSession(sid, (newData) => {
         // Callback appelé quand les données changent depuis Supabase
@@ -232,43 +290,90 @@ function renderMapModule(container, isEditable) {
     container.appendChild(wrapper);
 }
 
-// 2. PLAYERS (CRUD MJ)
+// 2. PLAYERS & PNJ (CRUD MJ COMPLET)
 function renderPlayersModule(container) {
-    const btnAdd = document.createElement('button');
-    btnAdd.className = 'btn btn-primary';
-    btnAdd.innerText = '+ Créer Joueur';
-    btnAdd.onclick = () => {
-        const name = prompt("Nom du joueur ?");
-        if(name) {
-            gameData.players.push({
-                id: generateId(), name, avatar: 'https://via.placeholder.com/50', 
-                gold: 0, elixir: 0, deck: [], x: 50, y: 50, inventory: ''
-            });
-            saveData(`Création du joueur ${name}`);
-        }
+    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-add-p" class="btn btn-primary">+ Nouveau Personnage</button></div>';
+    
+    // Bouton Création
+    document.getElementById('btn-add-p').onclick = () => {
+        openFormModal('Créer Personnage', [
+            { name: 'name', label: 'Nom', value: '' },
+            { name: 'type', label: 'Type', type: 'select', options: [{value:'player', label:'Joueur'}, {value:'npc', label:'PNJ'}], value: 'player' },
+            { name: 'avatar', label: 'URL Avatar (Image)', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
+            { name: 'desc', label: 'Description / Histoire', type: 'textarea', value: '' }
+        ], (data) => {
+            const newChar = {
+                id: generateId(),
+                name: data.name,
+                avatar: data.avatar,
+                desc: data.desc,
+                gold: 0, elixir: 0, deck: [], inventory: '',
+                x: 50, y: 50 // Position par défaut
+            };
+            
+            if(data.type === 'player') gameData.players.push(newChar);
+            else gameData.npcs.push(newChar);
+            
+            saveData(`Création de ${data.name}`);
+        });
     };
-    container.appendChild(btnAdd);
 
     const list = document.createElement('div');
-    list.style.marginTop = '20px';
     
-    gameData.players.forEach(p => {
+    // Fonction helper pour afficher une ligne
+    const renderRow = (char, type) => {
         const row = document.createElement('div');
-        row.style.background = 'white'; row.style.padding = '10px'; row.style.marginBottom = '5px';
-        row.innerHTML = `<b>${p.name}</b> - Or: <input type="number" style="width:50px" value="${p.gold}" onchange="updateResource('${p.id}', 'gold', this.value)">`;
-        
-        // Bouton ajout carte (Demo)
-        const btnCard = document.createElement('button');
-        btnCard.innerText = '+ Carte';
-        btnCard.onclick = () => {
-            const cardId = gameData.cards[0].id; // Ajoute toujours Chevalier pour démo
-            p.deck.push(cardId);
-            saveData(`Carte donnée à ${p.name}`);
+        row.className = 'panel';
+        row.style.marginBottom = '10px';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '10px';
+        row.style.textAlign = 'left';
+
+        row.innerHTML = `
+            <img src="${char.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #333">
+            <div style="flex:1">
+                <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small><br>
+                <small style="opacity:0.7">${char.desc || 'Pas de description'}</small>
+            </div>
+            <div style="display:flex; gap:5px">
+                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange" id="edit-${char.id}">✏️</button>
+                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:red" id="del-${char.id}">🗑️</button>
+            </div>
+        `;
+
+        // Logique Edition
+        row.querySelector(`#edit-${char.id}`).onclick = () => {
+            openFormModal(`Éditer ${char.name}`, [
+                { name: 'name', label: 'Nom', value: char.name },
+                { name: 'avatar', label: 'URL Avatar', value: char.avatar },
+                { name: 'desc', label: 'Description', type: 'textarea', value: char.desc || '' },
+                { name: 'inventory', label: 'Inventaire (Texte)', type: 'textarea', value: char.inventory || '' }
+            ], (data) => {
+                char.name = data.name;
+                char.avatar = data.avatar;
+                char.desc = data.desc;
+                char.inventory = data.inventory;
+                saveData(`Modification de ${char.name}`);
+            });
         };
-        row.appendChild(btnCard);
-        
+
+        // Logique Suppression
+        row.querySelector(`#del-${char.id}`).onclick = () => {
+            if(confirm(`Supprimer ${char.name} ?`)) {
+                if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
+                else gameData.npcs = gameData.npcs.filter(p => p.id !== char.id);
+                saveData(`Suppression de ${char.name}`);
+            }
+        };
+
         list.appendChild(row);
-    });
+    };
+
+    // Rendre les listes
+    gameData.players.forEach(p => renderRow(p, 'player'));
+    gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    
     container.appendChild(list);
 }
 
@@ -327,18 +432,58 @@ function renderChatModule(container) {
     };
 }
 
-// 4. CARTES (MJ)
+// 4. CARTES (MJ: Database & Création)
 function renderCardsModule(container) {
+    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
+
+    // Création
+    document.getElementById('btn-create-card').onclick = () => {
+        openFormModal('Nouvelle Carte / Objet', [
+            { name: 'name', label: 'Nom', value: '' },
+            { name: 'cost', label: 'Coût (Élixir)', type: 'number', value: '3' },
+            { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' },
+            { name: 'desc', label: 'Effet / Description', type: 'textarea', value: '' }
+        ], (data) => {
+            gameData.cards.push({
+                id: generateId(),
+                name: data.name,
+                cost: parseInt(data.cost),
+                img: data.img,
+                desc: data.desc
+            });
+            saveData(`Carte créée : ${data.name}`);
+        });
+    };
+
     const grid = document.createElement('div');
     grid.className = 'card-grid';
+    
     gameData.cards.forEach(c => {
         const el = document.createElement('div');
         el.className = 'clash-card';
+        el.style.cursor = 'pointer'; // Indique qu'on peut cliquer
         el.innerHTML = `
             <div class="cost">${c.cost}</div>
             <img src="${c.img}">
             <h4>${c.name}</h4>
         `;
+        
+        // Clic sur une carte = Édition
+        el.onclick = () => {
+            openFormModal(`Modifier ${c.name}`, [
+                { name: 'name', label: 'Nom', value: c.name },
+                { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
+                { name: 'img', label: 'Image URL', value: c.img },
+                { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
+            ], (data) => {
+                c.name = data.name;
+                c.cost = parseInt(data.cost);
+                c.img = data.img;
+                c.desc = data.desc;
+                saveData(`Carte modifiée : ${c.name}`);
+            });
+        };
+
         grid.appendChild(el);
     });
     container.appendChild(grid);
