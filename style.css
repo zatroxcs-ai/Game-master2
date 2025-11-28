@@ -134,3 +134,15 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 }
 @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* FORMULAIRES DYNAMIQUES */
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: var(--cr-blue-dark); }
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+    width: 100%; padding: 10px; border: 2px solid #ccc; border-radius: 6px;
+    font-family: inherit; font-size: 1rem;
+}
+.form-group input:focus { border-color: var(--cr-blue); outline: none; }
+.preview-img { display: block; width: 60px; height: 60px; object-fit: cover; margin: 5px auto; border-radius: 50%; border: 2px solid var(--cr-wood); }
