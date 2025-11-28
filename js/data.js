@@ -1,13 +1,13 @@
 // Configuration initiale et modèles
 export const APP_CONFIG = {
     // Remplacer par vos clés Supabase
-    SUPABASE_URL: 'https://votre-projet.supabase.co',
-    SUPABASE_KEY: 'votre-clé-anon-publique'
+    SUPABASE_URL: 'https://zbxhopdsokkjtzlxxhsq.supabase.co',
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpieGhvcGRzb2tranR6bHh4aHNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjQ5MDQsImV4cCI6MjA3OTk0MDkwNH0.WrMwE5kipZDBqzSXRMeR7zTwCl92mYyy8r669wCPkFM'
 };
 
 export const initialGameData = {
     config: {
-        mapUrl: 'https://i.pinimg.com/originals/99/f6/8b/99f68b376c95a2503239a0445d070119.jpg',
+        mapUrl: '/map.png',
         mapName: 'Arène Royale'
     },
     players: [], // { id, name, avatar, gold, elixir, darkElixir, inventory, deck: [], x: 50, y: 50 }
