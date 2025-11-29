@@ -161,3 +161,42 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 }
 .form-group input:focus { border-color: var(--cr-blue); outline: none; }
 .preview-img { display: block; width: 60px; height: 60px; object-fit: cover; margin: 5px auto; border-radius: 50%; border: 2px solid var(--cr-wood); }
+
+/* MODULE QUÊTES */
+.quest-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+    margin-bottom: 12px;
+    border-left: 6px solid var(--cr-gold); /* Bordure dorée style CR */
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    position: relative;
+    transition: transform 0.1s;
+}
+.quest-card:active { transform: scale(0.98); }
+
+.quest-giver {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px; /* Carré arrondi style icône appli */
+    border: 2px solid #333;
+    object-fit: cover;
+    margin-right: 15px;
+    background: #ccc;
+    flex-shrink: 0;
+}
+
+.quest-info { flex: 1; text-align: left; }
+.quest-title { font-weight: 900; color: var(--cr-blue-dark); font-size: 1.1rem; margin: 0 0 5px 0; }
+.quest-desc { font-size: 0.85rem; color: #666; font-style: italic; margin-bottom: 5px; }
+.quest-reward { 
+    background: var(--cr-gold); 
+    color: #432d00; 
+    font-weight: bold; 
+    padding: 2px 8px; 
+    border-radius: 10px; 
+    font-size: 0.8rem; 
+    display: inline-block;
+}
