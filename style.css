@@ -99,12 +99,27 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 .chat-input-area { display: flex; gap: 5px; }
 
 /* MODULE: RELATIONS */
-.relation-matrix { display: grid; gap: 2px; background: #999; border: 2px solid #666; }
-.rel-cell { background: white; padding: 10px; text-align: center; font-size: 12px; }
-.rel-header { background: var(--cr-wood); color: white; font-weight: bold; }
-.rel-friendly { background-color: #d4edda; }
-.rel-hostile { background-color: #f8d7da; }
-.rel-neutral { background-color: #e2e3e5; }
+/* MODULE RELATIONS */
+.relation-matrix {
+    border: 2px solid #333;
+    background: #666;
+    border-radius: 4px;
+}
+.rel-cell {
+    background: white;
+    text-align: center;
+    transition: background 0.2s;
+}
+.rel-header {
+    background: var(--cr-wood);
+    color: white;
+    font-size: 0.8rem;
+}
+/* États */
+.rel-neutral { background-color: #f0f0f0; }
+.rel-friendly { background-color: #d4edda; border: 1px solid #c3e6cb; } /* Vert */
+.rel-hostile { background-color: #f8d7da; border: 1px solid #f5c6cb; } /* Rouge */
+.rel-ally { background-color: #cce5ff; border: 1px solid #b8daff; } /* Bleu */
 
 /* PLAYER MOBILE SPECIFIC */
 #player-nav {
