@@ -1270,36 +1270,26 @@ function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
     const display = document.getElementById('new-card-display');
     
-    // On cherche la carte dans la base de données
     const card = gameData.cards.find(c => c.id === newCardId);
     
-    if(!card) {
-        console.error("Carte introuvable pour l'animation:", newCardId);
-        return;
-    }
-
-    // Son de coffre (Optionnel, marche selon navigateur)
-    // const audio = new Audio('https://raw.githubusercontent.com/zatroxcs-ai/Game-master2/main/assets/chest_open.mp3');
-    // audio.play().catch(e => console.log("Audio bloqué par navigateur"));
+    if(!card) return;
 
     display.innerHTML = `
-        <div class="clash-card" style="transform: scale(1.5); box-shadow: 0 0 50px white;">
+        <div class="clash-card" style="transform: scale(1.1); box-shadow: 0 0 30px white; margin: 0 auto; background: white;">
             <div class="cost">${card.cost}</div>
-            <img src="${card.img}" onerror="this.src='https://placehold.co/100x120?text=?'">
+            <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
             <h4>${card.name}</h4>
         </div>
-        <p style="margin-top:20px; font-size:1.2rem; color:#ffd700; text-shadow:0 2px 0 black">
-            Vous avez obtenu : <strong>${card.name}</strong> !
+        <p style="color:#ffd700; text-shadow:0 2px 0 black; line-height:1.4;">
+            Vous avez obtenu :<br><strong style="font-size:1.2rem; text-transform:uppercase">${card.name}</strong>
         </p>
     `;
     
     overlay.classList.remove('hidden');
     
-    // Fermeture automatique après 5 secondes
     setTimeout(() => {
         overlay.classList.add('hidden');
     }, 5000);
     
-    // Fermeture au clic (si le joueur est pressé)
     overlay.onclick = () => overlay.classList.add('hidden');
 }

@@ -442,3 +442,25 @@ p { color: #ddd; }
 
 @keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* FIX TAILLE CARTE ANIMATION */
+#new-card-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Force l'image à ne pas dépasser une certaine hauteur */
+#new-card-display .clash-card img {
+    max-height: 150px; /* Taille raisonnable sur mobile */
+    width: auto;
+    object-fit: contain;
+}
+
+/* Ajustement du texte de félicitations */
+#new-card-display p {
+    font-size: 1rem !important;
+    margin-top: 15px;
+    padding: 0 20px;
+}
