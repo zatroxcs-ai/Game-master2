@@ -426,7 +426,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS & PNJ
+// 2. PLAYERS & PNJ (Avec bouton Deck Manager)
 function renderPlayersModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-add-p" class="btn btn-primary">+ Nouveau Personnage</button></div>';
     
@@ -458,6 +458,7 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
+        // Zone input ressources (Joueur uniquement)
         const resourcesHtml = type === 'player' ? `
             <div style="margin-top:5px;">
                 <span style="font-size:0.8rem">💰</span> 
@@ -468,18 +469,22 @@ function renderPlayersModule(container) {
         ` : '';
 
         row.innerHTML = `
-            <img src="${char.avatar}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
+            <img src="${char.avatar}" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
             <div style="flex:1">
                 <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small>
                 ${resourcesHtml}
                 <small style="opacity:0.7; display:block; font-size:0.8rem">${char.desc || ''}</small>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px">
-                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange; margin:0" id="edit-${char.id}">✏️</button>
+                <div style="display:flex; gap:5px">
+                    <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:#7c4dff; margin:0" id="deck-${char.id}" title="Gérer les cartes">🎴</button>
+                    <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange; margin:0" id="edit-${char.id}">✏️</button>
+                </div>
                 <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:red; margin:0" id="del-${char.id}">🗑️</button>
             </div>
         `;
 
+        // Listeners Ressources
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
                 const val = parseInt(e.target.value) || 0;
@@ -493,6 +498,10 @@ function renderPlayersModule(container) {
             };
         });
 
+        // 1. GESTION DECK (NOUVEAU)
+        row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
+
+        // 2. EDITION
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
@@ -506,6 +515,7 @@ function renderPlayersModule(container) {
             });
         };
 
+        // 3. SUPPRESSION
         row.querySelector(`#del-${char.id}`).onclick = () => {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
@@ -1157,6 +1167,88 @@ function showQRCode() {
     if(gameData.players.length > 0) targetUrl += `&role=player&id=${gameData.players[0].id}`;
 
     new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
+}
+
+// --- GESTIONNAIRE DE DECK (MJ) ---
+function openDeckManager(player) {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+    
+    document.getElementById('form-title').innerText = `Deck de ${player.name}`;
+    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
+    modal.style.display = 'flex';
+
+    // Fonction interne pour rafraîchir l'affichage sans fermer la modale
+    const renderManager = () => {
+        container.innerHTML = '';
+
+        // 1. DECK ACTUEL (Ce que le joueur possède)
+        const currentSection = document.createElement('div');
+        currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:var(--cr-blue)">Possédé (Cliquer pour retirer)</h4>';
+        const currentList = document.createElement('div');
+        currentList.className = 'deck-manager-section mini-card-grid';
+        
+        if (player.deck.length === 0) {
+            currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
+        } else {
+            player.deck.forEach((cardId, index) => {
+                const card = gameData.cards.find(c => c.id === cardId);
+                if (card) {
+                    const el = document.createElement('div');
+                    el.className = 'mini-card';
+                    el.style.borderColor = 'red'; // Indique suppression
+                    el.innerHTML = `
+                        <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50'">
+                        <div>${card.name}</div>
+                        <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
+                    `;
+                    el.onclick = () => {
+                        player.deck.splice(index, 1); // Retire la carte
+                        saveData(); // Sauvegarde temps réel
+                        renderManager(); // Rafraîchit la vue
+                    };
+                    currentList.appendChild(el);
+                }
+            });
+        }
+        currentSection.appendChild(currentList);
+        container.appendChild(currentSection);
+
+        // 2. BIBLIOTHÈQUE (Ce qu'on peut donner)
+        const librarySection = document.createElement('div');
+        librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Ajouter (Cliquer pour donner)</h4>';
+        const libraryList = document.createElement('div');
+        libraryList.className = 'deck-manager-section mini-card-grid';
+        
+        gameData.cards.forEach(card => {
+            const el = document.createElement('div');
+            el.className = 'mini-card';
+            el.style.borderColor = 'green';
+            el.innerHTML = `
+                <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50'">
+                <div>${card.name}</div>
+                <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
+            `;
+            el.onclick = () => {
+                player.deck.push(card.id); // Ajoute l'ID
+                saveData(); // Sauvegarde temps réel (déclenchera l'anim chez le joueur)
+                renderManager(); // Rafraîchit
+            };
+            libraryList.appendChild(el);
+        });
+        
+        librarySection.appendChild(libraryList);
+        container.appendChild(librarySection);
+    };
+
+    renderManager(); // Premier affichage
+
+    // Reset du bouton save à la fermeture
+    modal.querySelector('.close-form').onclick = () => {
+        saveBtn.style.display = 'inline-block';
+        modal.style.display = 'none';
+    };
 }
 
 function triggerChestAnimation(newCardId) {

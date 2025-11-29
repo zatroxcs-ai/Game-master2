@@ -370,3 +370,42 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 /* Reset général pour mobile */
 h2, h3 { color: white; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
 p { color: #ddd; }
+
+/* GESTIONNAIRE DE DECK (MJ) */
+.deck-manager-section {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 8px;
+    background: #f9f9f9;
+    margin-bottom: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.mini-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+}
+
+.mini-card {
+    position: relative;
+    border: 1px solid #999;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    overflow: hidden;
+    text-align: center;
+    font-size: 0.7rem;
+    transition: transform 0.1s;
+}
+.mini-card:hover { transform: scale(1.05); border-color: var(--cr-blue); }
+.mini-card img { width: 100%; height: auto; display: block; }
+.mini-card .action-overlay {
+    position: absolute; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.5); color: white;
+    display: flex; justify-content: center; align-items: center;
+    font-weight: bold; font-size: 1.5rem;
+    opacity: 0; transition: opacity 0.2s;
+}
+.mini-card:hover .action-overlay { opacity: 1; }
