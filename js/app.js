@@ -250,43 +250,81 @@ function renderPlayer() {
 // 1. MAP
 let selectedEntityId = null; // Variable globale pour le drag & drop (à mettre en haut du fichier avec les autres let)
 
+// Variable globale pour la sélection (déjà existante normalement)
+// let selectedEntityId = null; 
+
 function renderMapModule(container, isEditable) {
+    // 1. MIGRATION DES DONNÉES (Pour compatibilité)
+    // Si la liste des cartes n'existe pas encore, on la crée à partir de la config actuelle
+    if (!gameData.maps) {
+        gameData.maps = [
+            { 
+                id: 'default', 
+                name: 'Carte Principale', 
+                url: gameData.config.mapUrl || './assets/map.png', // Fallback sûr
+                desc: 'La carte par défaut.'
+            }
+        ];
+        gameData.activeMapId = 'default';
+        // On sauvegarde silencieusement cette migration
+        import('./cloud.js').then(module => module.syncGameData(gameData));
+    }
+
+    // 2. RECUPERER LA CARTE ACTIVE
+    // On cherche la carte active, sinon on prend la première
+    let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
+    
+    // Fallback ultime si tout est cassé
+    if(!currentMap) currentMap = { url: './assets/map.png', name: 'Défaut' };
+
+    // 3. RENDU DU CONTAINER
     const wrapper = document.createElement('div');
     wrapper.className = 'map-container';
     
-    // L'image de fond
+    // L'image de la carte active
     const img = document.createElement('img');
-    img.src = gameData.config.mapUrl;
+    img.src = currentMap.url;
     img.className = 'map-img';
+    // Petit fix pour éviter l'icône d'image cassée
+    img.onerror = function() { this.src = 'https://via.placeholder.com/800x600?text=Image+Introuvable'; };
     
-    // Clic sur la carte = Déplacement
+    // LOGIQUE DE DÉPLACEMENT (MJ UNIQUEMENT)
     if(isEditable) {
         img.addEventListener('click', (e) => {
             if (selectedEntityId) {
-                // Trouver l'entité (Joueur ou PNJ)
                 let entity = gameData.players.find(p => p.id === selectedEntityId);
                 if (!entity) entity = gameData.npcs.find(n => n.id === selectedEntityId);
 
                 if (entity) {
                     const rect = wrapper.getBoundingClientRect();
-                    // Calcul en pourcentage pour le responsive
                     const x = ((e.clientX - rect.left) / rect.width) * 100;
                     const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    
                     entity.x = x;
                     entity.y = y;
-                    saveData(); // Sauvegarde auto
-                    // On ne re-render pas tout pour garder la fluidité, on bouge juste le pion visuellement
+                    saveData(); 
                     render(); 
                 }
             } else {
                 alert("Cliquez d'abord sur un pion pour le sélectionner !");
             }
         });
+
+        // --- BOUTON GESTION DES MAPS (NOUVEAU) ---
+        const btnManage = document.createElement('button');
+        btnManage.className = 'btn btn-secondary';
+        btnManage.innerHTML = '🗺️ Atlas';
+        btnManage.style.position = 'absolute';
+        btnManage.style.top = '10px';
+        btnManage.style.left = '10px';
+        btnManage.style.zIndex = '50';
+        
+        btnManage.onclick = () => openMapManager();
+        wrapper.appendChild(btnManage);
     }
+
     wrapper.appendChild(img);
 
-    // Rendu des pions
+    // 4. RENDU DES PIONS
     [...gameData.players, ...gameData.npcs].forEach(entity => {
         const p = document.createElement('div');
         p.className = 'pawn';
@@ -301,12 +339,11 @@ function renderMapModule(container, isEditable) {
             p.style.zIndex = 100;
         }
 
-        // Clic sur le pion = Sélection
         if (isEditable) {
             p.onclick = (e) => {
-                e.stopPropagation(); // Empêche de cliquer sur la carte en dessous
+                e.stopPropagation();
                 selectedEntityId = entity.id;
-                render(); // Rafraîchit pour afficher la bordure dorée
+                render(); 
             };
         }
         
@@ -319,6 +356,122 @@ function renderMapModule(container, isEditable) {
     });
 
     container.appendChild(wrapper);
+}
+
+// --- LOGIQUE DU GESTIONNAIRE DE CARTES ---
+
+function openMapManager() {
+    // On utilise une modale personnalisée pour lister les cartes
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    document.getElementById('form-title').innerText = 'Atlas des Cartes';
+    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
+
+    // 1. Bouton Créer
+    container.querySelector('#btn-new-map').onclick = () => {
+        modal.style.display = 'none'; // Ferme la liste
+        openFormModal('Nouvelle Carte', [
+            { name: 'name', label: 'Nom du lieu', value: '' },
+            { name: 'url', label: 'URL Image (ou ./assets/...)', value: './assets/map.png' },
+            { name: 'desc', label: 'Description', type: 'textarea', value: '' }
+        ], (data) => {
+            gameData.maps.push({
+                id: generateId(),
+                name: data.name,
+                url: data.url,
+                desc: data.desc
+            });
+            saveData(`Carte créée : ${data.name}`);
+            openMapManager(); // Réouvre le gestionnaire
+        });
+    };
+
+    // 2. Liste des cartes
+    const list = document.createElement('div');
+    list.style.maxHeight = '300px';
+    list.style.overflowY = 'auto';
+
+    gameData.maps.forEach(m => {
+        const isActive = m.id === gameData.activeMapId;
+        const row = document.createElement('div');
+        row.className = 'panel';
+        row.style.marginBottom = '10px';
+        row.style.background = isActive ? '#e3f2fd' : 'white';
+        row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
+        row.style.textAlign = 'left';
+        
+        row.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center">
+                <div>
+                    <strong>${m.name}</strong> ${isActive ? '✅ (Active)' : ''}<br>
+                    <small style="opacity:0.7">${m.desc || ''}</small>
+                </div>
+                <img src="${m.url}" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">
+            </div>
+            <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
+                ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:orange" id="edit-${m.id}">✏️</button>
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:red" id="del-${m.id}">🗑️</button>
+            </div>
+        `;
+
+        // Actions
+        if(!isActive) {
+            row.querySelector(`#load-${m.id}`).onclick = () => {
+                gameData.activeMapId = m.id;
+                gameData.config.mapUrl = m.url; // Rétro-compatibilité
+                saveData(`Changement de carte : ${m.name}`);
+                modal.style.display = 'none';
+            };
+        }
+
+        row.querySelector(`#edit-${m.id}`).onclick = () => {
+            modal.style.display = 'none';
+            openFormModal(`Modifier ${m.name}`, [
+                { name: 'name', label: 'Nom', value: m.name },
+                { name: 'url', label: 'URL', value: m.url },
+                { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
+            ], (data) => {
+                m.name = data.name;
+                m.url = data.url;
+                m.desc = data.desc;
+                saveData();
+                openMapManager();
+            });
+        };
+
+        row.querySelector(`#del-${m.id}`).onclick = () => {
+            if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
+            if(confirm('Supprimer cette carte ?')) {
+                gameData.maps = gameData.maps.filter(x => x.id !== m.id);
+                // Si on supprime la carte active, on revient à la première
+                if(isActive) {
+                    gameData.activeMapId = gameData.maps[0].id;
+                    gameData.config.mapUrl = gameData.maps[0].url;
+                }
+                saveData();
+                openMapManager(); // Refresh liste
+            }
+        };
+
+        list.appendChild(row);
+    });
+
+    container.appendChild(list);
+    
+    // Hack pour cacher le bouton de sauvegarde générique de la modale car on gère tout en interne
+    document.getElementById('btn-form-save').style.display = 'none';
+    
+    // Affichage
+    modal.style.display = 'flex';
+    
+    // Reset du bouton save à la fermeture
+    const closeBtn = modal.querySelector('.close-form');
+    const oldClose = closeBtn.onclick;
+    closeBtn.onclick = () => {
+        document.getElementById('btn-form-save').style.display = 'inline-block';
+        modal.style.display = 'none';
+    };
 }
 
 // 2. PLAYERS & PNJ (CRUD MJ COMPLET + FIX RESSOURCES)
