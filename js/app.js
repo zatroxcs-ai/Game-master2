@@ -116,11 +116,13 @@ function openFormModal(title, fields, onSave) {
         } else if (f.type === 'textarea') {
             input = document.createElement('textarea');
             input.rows = 3;
-            input.value = f.value || '';
+            // Accepte le 0, mais met vide si null/undefined
+            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
         } else {
             input = document.createElement('input');
             input.type = f.type || 'text';
-            input.value = f.value || '';
+            // Accepte le 0, mais met vide si null/undefined
+            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
         }
         
         input.id = `field-${f.name}`;
@@ -246,29 +248,42 @@ function renderPlayer() {
 // --- MODULES DE RENDU ---
 
 // 1. MAP
+let selectedEntityId = null; // Variable globale pour le drag & drop (à mettre en haut du fichier avec les autres let)
+
 function renderMapModule(container, isEditable) {
     const wrapper = document.createElement('div');
     wrapper.className = 'map-container';
     
+    // L'image de fond
     const img = document.createElement('img');
     img.src = gameData.config.mapUrl;
     img.className = 'map-img';
     
+    // Clic sur la carte = Déplacement
     if(isEditable) {
         img.addEventListener('click', (e) => {
-            // Logique simple: déplacer le dernier joueur sélectionné (simplifié ici pour démo : déplace Arthur par défaut ou premier joueur)
-            if(gameData.players.length > 0) {
-                const rect = wrapper.getBoundingClientRect();
-                const x = ((e.clientX - rect.left) / rect.width) * 100;
-                const y = ((e.clientY - rect.top) / rect.height) * 100;
-                // Exemple : on déplace le premier joueur pour la démo
-                gameData.players[0].x = x;
-                gameData.players[0].y = y;
-                saveData();
+            if (selectedEntityId) {
+                // Trouver l'entité (Joueur ou PNJ)
+                let entity = gameData.players.find(p => p.id === selectedEntityId);
+                if (!entity) entity = gameData.npcs.find(n => n.id === selectedEntityId);
+
+                if (entity) {
+                    const rect = wrapper.getBoundingClientRect();
+                    // Calcul en pourcentage pour le responsive
+                    const x = ((e.clientX - rect.left) / rect.width) * 100;
+                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    
+                    entity.x = x;
+                    entity.y = y;
+                    saveData(); // Sauvegarde auto
+                    // On ne re-render pas tout pour garder la fluidité, on bouge juste le pion visuellement
+                    render(); 
+                }
+            } else {
+                alert("Cliquez d'abord sur un pion pour le sélectionner !");
             }
         });
     }
-
     wrapper.appendChild(img);
 
     // Rendu des pions
@@ -278,6 +293,22 @@ function renderMapModule(container, isEditable) {
         p.style.left = entity.x + '%';
         p.style.top = entity.y + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
+        
+        // Bordure spéciale si sélectionné
+        if (selectedEntityId === entity.id) {
+            p.style.borderColor = 'var(--cr-gold)';
+            p.style.boxShadow = '0 0 15px var(--cr-gold)';
+            p.style.zIndex = 100;
+        }
+
+        // Clic sur le pion = Sélection
+        if (isEditable) {
+            p.onclick = (e) => {
+                e.stopPropagation(); // Empêche de cliquer sur la carte en dessous
+                selectedEntityId = entity.id;
+                render(); // Rafraîchit pour afficher la bordure dorée
+            };
+        }
         
         const label = document.createElement('div');
         label.className = 'pawn-label';
@@ -290,7 +321,7 @@ function renderMapModule(container, isEditable) {
     container.appendChild(wrapper);
 }
 
-// 2. PLAYERS & PNJ (CRUD MJ COMPLET)
+// 2. PLAYERS & PNJ (CRUD MJ COMPLET + FIX RESSOURCES)
 function renderPlayersModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-add-p" class="btn btn-primary">+ Nouveau Personnage</button></div>';
     
@@ -308,7 +339,7 @@ function renderPlayersModule(container) {
                 avatar: data.avatar,
                 desc: data.desc,
                 gold: 0, elixir: 0, deck: [], inventory: '',
-                x: 50, y: 50 // Position par défaut
+                x: 50, y: 50
             };
             
             if(data.type === 'player') gameData.players.push(newChar);
@@ -320,7 +351,7 @@ function renderPlayersModule(container) {
 
     const list = document.createElement('div');
     
-    // Fonction helper pour afficher une ligne
+    // Fonction helper pour afficher une ligne (Fusionnée)
     const renderRow = (char, type) => {
         const row = document.createElement('div');
         row.className = 'panel';
@@ -330,19 +361,50 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
-        row.innerHTML = `
-            <img src="${char.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #333">
-            <div style="flex:1">
-                <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small><br>
-                <small style="opacity:0.7">${char.desc || 'Pas de description'}</small>
+        // HTML combinant : Avatar + Inputs Ressources (si Joueur) + Boutons Edit/Del
+        // On n'affiche les ressources que pour les Joueurs (type === 'player')
+        const resourcesHtml = type === 'player' ? `
+            <div style="margin-top:5px;">
+                <span style="font-size:0.8rem">💰</span> 
+                <input type="number" class="res-input" data-id="${char.id}" data-type="gold" style="width:50px; padding:2px;" value="${char.gold}">
+                <span style="font-size:0.8rem; margin-left:5px">💧</span> 
+                <input type="number" class="res-input" data-id="${char.id}" data-type="elixir" style="width:50px; padding:2px;" value="${char.elixir}">
             </div>
-            <div style="display:flex; gap:5px">
-                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange" id="edit-${char.id}">✏️</button>
-                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:red" id="del-${char.id}">🗑️</button>
+        ` : '';
+
+        row.innerHTML = `
+            <img src="${char.avatar}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
+            <div style="flex:1">
+                <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small>
+                ${resourcesHtml}
+                <small style="opacity:0.7; display:block; font-size:0.8rem">${char.desc || ''}</small>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px">
+                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange; margin:0" id="edit-${char.id}">✏️</button>
+                <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:red; margin:0" id="del-${char.id}">🗑️</button>
             </div>
         `;
 
-        // Logique Edition
+        // --- PARTIE CORRECTION BUG FOCUS ---
+        // On attache les événements manuellement pour éviter le re-render global
+        row.querySelectorAll('.res-input').forEach(input => {
+            input.onchange = (e) => {
+                const val = parseInt(e.target.value) || 0; // Gère le vide comme 0
+                const fieldType = e.target.dataset.type;
+                const pid = e.target.dataset.id;
+                
+                // Mise à jour silencieuse de l'objet local
+                const targetP = gameData.players.find(x => x.id === pid);
+                if(targetP) {
+                    targetP[fieldType] = val;
+                    // On envoie à Supabase sans recharger l'interface (pour garder le focus)
+                    import('./cloud.js').then(module => module.syncGameData(gameData));
+                }
+            };
+        });
+        // -----------------------------------
+
+        // Logique Edition (Bouton Crayon)
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
@@ -358,7 +420,7 @@ function renderPlayersModule(container) {
             });
         };
 
-        // Logique Suppression
+        // Logique Suppression (Bouton Poubelle)
         row.querySelector(`#del-${char.id}`).onclick = () => {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
@@ -372,64 +434,14 @@ function renderPlayersModule(container) {
 
     // Rendre les listes
     gameData.players.forEach(p => renderRow(p, 'player'));
-    gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    if(gameData.npcs.length > 0) {
+        const sep = document.createElement('h3'); 
+        sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
+        list.appendChild(sep);
+        gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    }
     
     container.appendChild(list);
-}
-
-// Helper global pour l'input HTML
-window.updateResource = (pid, type, val) => {
-    const p = gameData.players.find(x => x.id === pid);
-    if(p) {
-        p[type] = parseInt(val);
-        saveData();
-    }
-};
-
-// 3. CHAT
-function renderChatModule(container) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'chat-window';
-    
-    const messages = document.createElement('div');
-    messages.className = 'chat-messages';
-    
-    gameData.chat.forEach(msg => {
-        const div = document.createElement('div');
-        const isSelf = msg.sender === currentUser.id || (currentUser.role === 'dm' && msg.sender === 'MJ');
-        div.className = `message ${isSelf ? 'self' : ''}`;
-        div.innerHTML = `
-            <small>${msg.sender} - ${formatTime(msg.timestamp)}</small>
-            <div class="bubble">${msg.text}</div>
-        `;
-        messages.appendChild(div);
-    });
-    
-    const inputArea = document.createElement('div');
-    inputArea.className = 'chat-input-area';
-    inputArea.innerHTML = `
-        <input type="text" id="chat-input" style="flex:1; padding:10px;" placeholder="Message...">
-        <button class="btn btn-primary" id="chat-send">Envoyer</button>
-    `;
-
-    wrapper.appendChild(messages);
-    wrapper.appendChild(inputArea);
-    container.appendChild(wrapper);
-
-    // Scroll au bas
-    messages.scrollTop = messages.scrollHeight;
-
-    // Events
-    wrapper.querySelector('#chat-send').onclick = () => {
-        const txt = wrapper.querySelector('#chat-input').value;
-        if(txt) {
-            const senderName = currentUser.role === 'dm' ? 'MJ' : gameData.players.find(p => p.id === currentUser.id)?.name || 'Inconnu';
-            gameData.chat.push({
-                id: generateId(), sender: senderName, text: txt, timestamp: new Date().toISOString()
-            });
-            saveData();
-        }
-    };
 }
 
 // 4. CARTES (MJ: Database & Création)
