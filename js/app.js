@@ -11,6 +11,11 @@ let currentFormCallback = null;
 let isFirstLoad = true;
 let selectedRelCharId = null; // Mémoire du perso sélectionné dans l'onglet Relations
 
+// Helper : Trouve un perso (Joueur ou PNJ) par son ID
+function findEntityById(id) {
+    return gameData.players.find(p => p.id === id) || gameData.npcs.find(n => n.id === id);
+}
+
 // --- DOM ELEMENTS ---
 const screens = {
     login: document.getElementById('login-screen'),
@@ -305,8 +310,7 @@ function renderMapModule(container, isEditable) {
     if(isEditable) {
         img.addEventListener('click', (e) => {
             if (selectedEntityId) {
-                let entity = gameData.players.find(p => p.id === selectedEntityId);
-                if (!entity) entity = gameData.npcs.find(n => n.id === selectedEntityId);
+                let entity = findEntityById(selectedEntityId);
 
                 if (entity) {
                     const rect = wrapper.getBoundingClientRect();
@@ -1423,31 +1427,30 @@ function showQRCode() {
     new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
 }
 
-// --- GESTIONNAIRE DE DECK (MJ) ---
-// --- GESTIONNAIRE DE DECK (MJ) - VERSION CORRIGÉE ---
-function openDeckManager(playerArg) {
+// --- GESTIONNAIRE DE DECK (MJ) - VERSION PNJ COMPATIBLE ---
+function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    // On stocke l'ID, pas l'objet joueur entier, pour éviter les bugs de référence
-    const targetPlayerId = playerArg.id;
+    // On garde l'ID pour retrouver l'entité fraîche à chaque fois
+    const targetId = entityArg.id;
 
-    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
+    saveBtn.style.display = 'none'; // Pas de bouton save, action immédiate
     modal.style.display = 'flex';
 
-    // Fonction interne qui redessine tout le contenu de la modale
     const renderManager = () => {
-        // 1. On récupère la version la plus fraîche du joueur
-        const freshPlayer = gameData.players.find(p => p.id === targetPlayerId);
+        // 1. RECHERCHE GLOBALE (JOUEURS + PNJ)
+        const freshEntity = findEntityById(targetId);
         
-        // Sécurité : si le joueur a été supprimé entre temps
-        if (!freshPlayer) return modal.style.display = 'none';
+        // Si l'entité n'existe plus (supprimée entre temps), on ferme
+        if (!freshEntity) return modal.style.display = 'none';
 
         // Mise à jour du titre
-        document.getElementById('form-title').innerText = `Deck de ${freshPlayer.name}`;
+        const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
+        document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
         
-        container.innerHTML = ''; // On vide tout pour reconstruire
+        container.innerHTML = ''; 
 
         // --- ZONE 1 : DECK ACTUEL ---
         const currentSection = document.createElement('div');
@@ -1456,12 +1459,14 @@ function openDeckManager(playerArg) {
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        if (freshPlayer.deck.length === 0) {
+        // Initialisation si deck undefined (sécurité pour vieux PNJ)
+        if (!freshEntity.deck) freshEntity.deck = [];
+
+        if (freshEntity.deck.length === 0) {
             currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
         } else {
-            freshPlayer.deck.forEach((cardId, index) => {
+            freshEntity.deck.forEach((cardId, index) => {
                 const card = gameData.cards.find(c => c.id === cardId);
-                // Si la carte existe encore dans la base
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
@@ -1472,10 +1477,9 @@ function openDeckManager(playerArg) {
                         <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
                     `;
                     el.onclick = () => {
-                        // On modifie le joueur "frais"
-                        freshPlayer.deck.splice(index, 1); 
-                        saveData(); // Sauvegarde réseau
-                        renderManager(); // Rechargement immédiat de la vue
+                        freshEntity.deck.splice(index, 1); 
+                        saveData(); 
+                        renderManager(); // On reste dans la fenêtre
                     };
                     currentList.appendChild(el);
                 }
@@ -1501,9 +1505,9 @@ function openDeckManager(playerArg) {
                 <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
             `;
             el.onclick = () => {
-                freshPlayer.deck.push(card.id);
-                saveData(); // L'animation se déclenchera chez le joueur
-                renderManager(); // Rechargement immédiat de la vue
+                freshEntity.deck.push(card.id);
+                saveData();
+                renderManager(); // On reste dans la fenêtre
             };
             libraryList.appendChild(el);
         });
@@ -1512,10 +1516,8 @@ function openDeckManager(playerArg) {
         container.appendChild(librarySection);
     };
 
-    // Premier lancement
     renderManager();
 
-    // Reset du bouton save à la fermeture
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
         modal.style.display = 'none';
