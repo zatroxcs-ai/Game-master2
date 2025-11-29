@@ -354,18 +354,25 @@ function renderMapModule(container, isEditable) {
     container.appendChild(wrapper);
 }
 
-// --- LOGIQUE DU GESTIONNAIRE DE CARTES ---
+// --- LOGIQUE DU GESTIONNAIRE DE CARTES (CORRIGÉE) ---
 
 function openMapManager() {
     // On utilise une modale personnalisée pour lister les cartes
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save'); // On récupère le bouton
+    
     document.getElementById('form-title').innerText = 'Atlas des Cartes';
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
 
-    // 1. Bouton Créer
+    // 1. Action du Bouton "Créer"
     container.querySelector('#btn-new-map').onclick = () => {
         modal.style.display = 'none'; // Ferme la liste
+        
+        // IMPORTANT : On réaffiche le bouton de sauvegarde pour le formulaire !
+        saveBtn.style.display = 'inline-block'; 
+        saveBtn.innerText = 'Créer la carte'; // On peut même changer le texte
+
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom du lieu', value: '' },
             { name: 'url', label: 'URL Image (ou ./assets/...)', value: './assets/map.png' },
@@ -378,7 +385,9 @@ function openMapManager() {
                 desc: data.desc
             });
             saveData(`Carte créée : ${data.name}`);
-            openMapManager(); // Réouvre le gestionnaire
+            
+            // Une fois fini, on réouvre le manager (qui cachera le bouton à nouveau)
+            setTimeout(() => openMapManager(), 100); 
         });
     };
 
@@ -411,18 +420,24 @@ function openMapManager() {
             </div>
         `;
 
-        // Actions
+        // Action: CHARGER
         if(!isActive) {
             row.querySelector(`#load-${m.id}`).onclick = () => {
                 gameData.activeMapId = m.id;
-                gameData.config.mapUrl = m.url; // Rétro-compatibilité
+                gameData.config.mapUrl = m.url;
                 saveData(`Changement de carte : ${m.name}`);
                 modal.style.display = 'none';
             };
         }
 
+        // Action: MODIFIER
         row.querySelector(`#edit-${m.id}`).onclick = () => {
             modal.style.display = 'none';
+            
+            // IMPORTANT : On réaffiche le bouton de sauvegarde
+            saveBtn.style.display = 'inline-block';
+            saveBtn.innerText = 'Sauvegarder';
+
             openFormModal(`Modifier ${m.name}`, [
                 { name: 'name', label: 'Nom', value: m.name },
                 { name: 'url', label: 'URL', value: m.url },
@@ -432,15 +447,15 @@ function openMapManager() {
                 m.url = data.url;
                 m.desc = data.desc;
                 saveData();
-                openMapManager();
+                setTimeout(() => openMapManager(), 100);
             });
         };
 
+        // Action: SUPPRIMER
         row.querySelector(`#del-${m.id}`).onclick = () => {
             if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
             if(confirm('Supprimer cette carte ?')) {
                 gameData.maps = gameData.maps.filter(x => x.id !== m.id);
-                // Si on supprime la carte active, on revient à la première
                 if(isActive) {
                     gameData.activeMapId = gameData.maps[0].id;
                     gameData.config.mapUrl = gameData.maps[0].url;
@@ -455,17 +470,19 @@ function openMapManager() {
 
     container.appendChild(list);
     
-    // Hack pour cacher le bouton de sauvegarde générique de la modale car on gère tout en interne
-    document.getElementById('btn-form-save').style.display = 'none';
+    // --- ICI ON CACHE LE BOUTON POUR LA VUE LISTE ---
+    saveBtn.style.display = 'none';
     
     // Affichage
     modal.style.display = 'flex';
     
-    // Reset du bouton save à la fermeture
+    // Gestion fermeture propre
     const closeBtn = modal.querySelector('.close-form');
-    const oldClose = closeBtn.onclick;
+    // On remet le bouton visible par défaut quand on ferme totalement la modale
+    // pour ne pas casser les autres formulaires (Joueurs, Cartes)
     closeBtn.onclick = () => {
-        document.getElementById('btn-form-save').style.display = 'inline-block';
+        saveBtn.style.display = 'inline-block'; 
+        saveBtn.innerText = 'Sauvegarder'; // Reset texte
         modal.style.display = 'none';
     };
 }
