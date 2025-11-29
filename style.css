@@ -581,3 +581,67 @@ p { color: #ddd; }
     left: 0; top: 0; opacity: 0;
     cursor: pointer;
 }
+
+/* MODULE RELATIONS V2 (POINT DE VUE) */
+.rel-selector {
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    overflow-x: auto;
+    background: rgba(0,0,0,0.05);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    justify-content: center; /* Centré si peu de persos */
+}
+
+.rel-avatar-select {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s;
+    opacity: 0.6;
+}
+
+.rel-avatar-select.active {
+    border-color: var(--cr-blue);
+    opacity: 1;
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.rel-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive */
+    gap: 20px;
+}
+
+.rel-column {
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+.rel-column h3 {
+    text-align: center;
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+    font-size: 1rem;
+}
+
+.rel-card {
+    display: flex;
+    align-items: center;
+    background: #f9f9f9;
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    border-left: 4px solid #ccc;
+    transition: transform 0.1s;
+}
+.rel-card:hover { transform: translateX(5px); background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+.rel-card img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px; }

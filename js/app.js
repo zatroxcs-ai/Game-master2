@@ -9,6 +9,7 @@ let prevDeckSize = 0;
 let selectedEntityId = null;
 let currentFormCallback = null;
 let isFirstLoad = true;
+let selectedRelCharId = null; // Mémoire du perso sélectionné dans l'onglet Relations
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -799,117 +800,116 @@ function renderCardsModule(container) {
     container.appendChild(grid);
 }
 
-// 5. RELATIONS (MATRICE INTERACTIVE)
+// 5. RELATIONS V2 (VUE VISUELLE)
 function renderRelationsModule(container) {
-    // 1. Initialisation de sécurité
     if (!gameData.relations) gameData.relations = [];
-
-    container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h2>Matrice des Relations</h2>
-            <small style="color:#666">Cliquez sur une case pour changer l'état</small>
-        </div>
-    `;
-    
-    // On combine Joueurs et PNJ
     const entities = [...gameData.players, ...gameData.npcs];
-    
+
     if(entities.length < 2) {
-        return container.innerHTML += '<div class="panel">Il faut au moins 2 personnages (Joueurs ou PNJ) pour définir des relations.</div>';
+        return container.innerHTML = '<div class="panel">Il faut au moins 2 personnages pour avoir des relations.</div>';
     }
 
-    // 2. Légende
-    const legend = document.createElement('div');
-    legend.style.display = 'flex';
-    legend.style.gap = '10px';
-    legend.style.marginBottom = '15px';
-    legend.style.justifyContent = 'center';
-    legend.innerHTML = `
-        <span class="rel-cell rel-neutral">😐 Neutre</span>
-        <span class="rel-cell rel-friendly">🙂 Ami</span>
-        <span class="rel-cell rel-hostile">😡 Hostile</span>
-        <span class="rel-cell rel-ally">🛡️ Allié</span>
-    `;
-    container.appendChild(legend);
+    // Sélection par défaut du premier personnage si aucun n'est choisi
+    if (!selectedRelCharId || !entities.find(e => e.id === selectedRelCharId)) {
+        selectedRelCharId = entities[0].id;
+    }
 
-    // 3. Construction de la Grille
-    const matrix = document.createElement('div');
-    matrix.className = 'relation-matrix';
-    // CSS Grid dynamique : 1 colonne pour les noms + 1 colonne par entité
-    matrix.style.display = 'grid';
-    matrix.style.gridTemplateColumns = `100px repeat(${entities.length}, 1fr)`;
-    matrix.style.gap = '2px';
-    matrix.style.overflowX = 'auto'; // Scroll si trop de persos
+    container.innerHTML = `<h2>Réseau d'Influence</h2><p class="hint">Sélectionnez un personnage en haut pour voir son point de vue.</p>`;
 
-    // A. Coin haut-gauche (vide)
-    const corner = document.createElement('div');
-    corner.className = 'rel-cell rel-header';
-    corner.style.background = '#333';
-    corner.innerText = 'QUI \\ A';
-    matrix.appendChild(corner);
-
-    // B. En-têtes Colonnes (Cibles)
+    // 1. SÉLECTEUR (Haut)
+    const selector = document.createElement('div');
+    selector.className = 'rel-selector';
+    
     entities.forEach(e => {
-        const header = document.createElement('div');
-        header.className = 'rel-cell rel-header';
-        header.style.writingMode = 'vertical-rl'; // Texte vertical pour gagner de la place
-        header.style.transform = 'rotate(180deg)';
-        header.style.height = '80px';
-        header.style.padding = '5px';
-        header.innerText = e.name;
-        matrix.appendChild(header);
+        const img = document.createElement('img');
+        img.src = e.avatar;
+        img.className = `rel-avatar-select ${e.id === selectedRelCharId ? 'active' : ''}`;
+        img.title = e.name;
+        img.onerror = function() { this.src='https://placehold.co/60'; };
+        
+        img.onclick = () => {
+            selectedRelCharId = e.id;
+            renderRelationsModule(container); // Recharger la vue
+        };
+        selector.appendChild(img);
+    });
+    container.appendChild(selector);
+
+    // 2. LE TABLEAU DE BORD (3 Colonnes)
+    const board = document.createElement('div');
+    board.className = 'rel-board';
+
+    // On prépare les 3 colonnes
+    const cols = {
+        friendly: { title: '💚 Alliés / Amis', color: '#28a745', list: [] },
+        neutral:  { title: '😐 Neutres / Inconnus', color: '#6c757d', list: [] },
+        hostile:  { title: '❤️ Hostiles / Ennemis', color: '#dc3545', list: [] }
+    };
+
+    // On trie les autres entités
+    entities.forEach(target => {
+        if (target.id === selectedRelCharId) return; // On ne s'affiche pas soi-même
+
+        // Chercher la relation
+        const rel = gameData.relations.find(r => r.source === selectedRelCharId && r.target === target.id);
+        let status = rel ? rel.status : 'neutral';
+        
+        // Mapping simple : 'ally' va avec 'friendly' pour l'affichage visuel
+        let displayCat = status;
+        if (status === 'ally') displayCat = 'friendly';
+
+        cols[displayCat].list.push({ ...target, realStatus: status });
     });
 
-    // C. Lignes (Sources)
-    entities.forEach(source => {
-        // En-tête Ligne (Celui qui ressent l'émotion)
-        const rowHead = document.createElement('div');
-        rowHead.className = 'rel-cell rel-header';
-        rowHead.innerText = source.name;
-        rowHead.style.display = 'flex';
-        rowHead.style.alignItems = 'center';
-        rowHead.style.justifyContent = 'center';
-        rowHead.style.fontWeight = 'bold';
-        matrix.appendChild(rowHead);
-
-        // Cellules
-        entities.forEach(target => {
-            const cell = document.createElement('div');
-            cell.className = 'rel-cell';
-            cell.style.height = '40px';
-            cell.style.display = 'flex';
-            cell.style.alignItems = 'center';
-            cell.style.justifyContent = 'center';
-            cell.style.fontSize = '1.2rem';
-            
-            // Auto-relation (Diagonale) -> Grisé
-            if (source.id === target.id) {
-                cell.style.background = '#ddd';
-                cell.innerText = '—';
-            } else {
-                // Trouver la relation existante
-                const rel = gameData.relations.find(r => r.source === source.id && r.target === target.id);
-                const status = rel ? rel.status : 'neutral';
+    // Génération HTML des colonnes
+    Object.keys(cols).forEach(key => {
+        const colData = cols[key];
+        const colDiv = document.createElement('div');
+        colDiv.className = 'rel-column';
+        colDiv.style.borderTop = `4px solid ${colData.color}`;
+        
+        colDiv.innerHTML = `<h3 style="color:${colData.color}">${colData.title}</h3>`;
+        
+        if (colData.list.length === 0) {
+            colDiv.innerHTML += '<p style="opacity:0.5; font-size:0.8rem; text-align:center">- Vide -</p>';
+        } else {
+            colData.list.forEach(char => {
+                const card = document.createElement('div');
+                card.className = 'rel-card';
+                card.style.borderLeftColor = colData.color;
                 
-                // Styling
-                cell.className = `rel-cell rel-${status}`; // rel-friendly, rel-hostile...
-                cell.innerText = getRelIcon(status);
-                cell.style.cursor = 'pointer';
-                cell.title = `${source.name} est ${status} envers ${target.name}`;
+                // Icône spécifique selon le statut précis
+                let icon = '😐';
+                if(char.realStatus === 'friendly') icon = '🙂';
+                if(char.realStatus === 'ally') icon = '🛡️';
+                if(char.realStatus === 'hostile') icon = '😡';
 
-                // INTERACTION
-                // On utilise currentUser.role pour empêcher les joueurs de tout modifier si on veut (ici ouvert à tous pour simplicité)
+                card.innerHTML = `
+                    <img src="${char.avatar}" onerror="this.src='https://placehold.co/40'">
+                    <div style="flex:1">
+                        <strong>${char.name}</strong>
+                    </div>
+                    <div style="font-size:1.2rem">${icon}</div>
+                `;
+
+                // Interaction : Cycle au clic
                 if(currentUser.role === 'dm') {
-                    cell.onclick = () => cycleRelation(source.id, target.id, status);
+                    card.title = "Cliquez pour changer la relation";
+                    card.onclick = () => {
+                        cycleRelation(selectedRelCharId, char.id, char.realStatus);
+                        // Pas besoin de recharger manuellement, saveData() le fera via le cloud
+                    };
                 } else {
-                    cell.style.cursor = 'default'; // Les joueurs voient mais ne touchent pas
+                    card.style.cursor = 'default';
                 }
-            }
-            matrix.appendChild(cell);
-        });
+
+                colDiv.appendChild(card);
+            });
+        }
+        board.appendChild(colDiv);
     });
 
-    container.appendChild(matrix);
+    container.appendChild(board);
 }
 
 // Helpers internes (nécessaires pour le fonctionnement)
