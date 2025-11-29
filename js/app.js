@@ -8,6 +8,7 @@ let currentTab = 'map';
 let prevDeckSize = 0;
 let selectedEntityId = null;
 let currentFormCallback = null;
+let isFirstLoad = true;
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -65,8 +66,17 @@ function setupEventListeners() {
     document.querySelectorAll('#dm-nav button').forEach(btn => {
         btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'dm'));
     });
+    // Navigation (CORRECTIF MOBILE)
+    document.querySelectorAll('#dm-nav button').forEach(btn => {
+        btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.tab, 'dm'));
+    });
+    
+    // Ici on utilise 'currentTarget' pour être sûr de capter le clic même sur l'icône
     document.querySelectorAll('#player-nav button').forEach(btn => {
-        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'player'));
+        btn.addEventListener('click', (e) => {
+            e.preventDefault(); // Empêche les comportements bizarres sur mobile
+            switchTab(e.currentTarget.dataset.tab, 'player');
+        });
     });
 
     // Modale QR
@@ -1241,28 +1251,38 @@ function openDeckManager(player) {
 
 // Remplace la fonction updateLocalData existante
 function updateLocalData(newData) {
-    console.log("📥 Données reçues via Realtime"); // Log pour vérifier
+    // Si c'est le tout premier chargement de la page
+    if (isFirstLoad) {
+        gameData = newData;
+        // On initialise la taille du deck sans déclencher d'animation
+        if (currentUser.role === 'player') {
+            const me = newData.players.find(p => p.id === currentUser.id);
+            if (me) prevDeckSize = me.deck.length;
+        }
+        isFirstLoad = false; // On désactive le drapeau pour les prochaines fois
+        render();
+        return; // On arrête là pour cette fois
+    }
 
     // Détection pour le Joueur : Est-ce que mon deck a grandi ?
     if (currentUser.role === 'player') {
         const meNew = newData.players.find(p => p.id === currentUser.id);
         
-        // Sécurité : on s'assure que prevDeckSize est initialisé
-        if (typeof prevDeckSize === 'undefined') prevDeckSize = meNew ? meNew.deck.length : 0;
+        // On s'assure que prevDeckSize est un nombre
+        if (typeof prevDeckSize === 'undefined') prevDeckSize = 0;
 
         if (meNew && meNew.deck.length > prevDeckSize) {
             console.log("🎁 NOUVELLE CARTE DÉTECTÉE !");
-            // On récupère la dernière carte ajoutée
             const newCardId = meNew.deck[meNew.deck.length - 1];
-            triggerChestAnimation(newCardId);
+            // Petite sécurité : on vérifie que la carte existe vraiment
+            if(newCardId) triggerChestAnimation(newCardId);
         }
         
-        // Mise à jour de la taille de référence pour la prochaine fois
         if (meNew) prevDeckSize = meNew.deck.length;
     }
 
     gameData = newData;
-    render(); // Met à jour l'affichage (Deck, Or, etc.)
+    render();
 }
 
 // Remplace la fonction triggerChestAnimation existante
