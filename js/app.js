@@ -1424,43 +1424,58 @@ function showQRCode() {
 }
 
 // --- GESTIONNAIRE DE DECK (MJ) ---
-function openDeckManager(player) {
+// --- GESTIONNAIRE DE DECK (MJ) - VERSION CORRIGÉE ---
+function openDeckManager(playerArg) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    document.getElementById('form-title').innerText = `Deck de ${player.name}`;
+    // On stocke l'ID, pas l'objet joueur entier, pour éviter les bugs de référence
+    const targetPlayerId = playerArg.id;
+
     saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
     modal.style.display = 'flex';
 
-    // Fonction interne pour rafraîchir l'affichage sans fermer la modale
+    // Fonction interne qui redessine tout le contenu de la modale
     const renderManager = () => {
-        container.innerHTML = '';
+        // 1. On récupère la version la plus fraîche du joueur
+        const freshPlayer = gameData.players.find(p => p.id === targetPlayerId);
+        
+        // Sécurité : si le joueur a été supprimé entre temps
+        if (!freshPlayer) return modal.style.display = 'none';
 
-        // 1. DECK ACTUEL (Ce que le joueur possède)
+        // Mise à jour du titre
+        document.getElementById('form-title').innerText = `Deck de ${freshPlayer.name}`;
+        
+        container.innerHTML = ''; // On vide tout pour reconstruire
+
+        // --- ZONE 1 : DECK ACTUEL ---
         const currentSection = document.createElement('div');
         currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:var(--cr-blue)">Possédé (Cliquer pour retirer)</h4>';
+        
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        if (player.deck.length === 0) {
+        if (freshPlayer.deck.length === 0) {
             currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
         } else {
-            player.deck.forEach((cardId, index) => {
+            freshPlayer.deck.forEach((cardId, index) => {
                 const card = gameData.cards.find(c => c.id === cardId);
+                // Si la carte existe encore dans la base
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
-                    el.style.borderColor = 'red'; // Indique suppression
+                    el.style.borderColor = 'red';
                     el.innerHTML = `
-                        <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50'">
+                        <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
                         <div>${card.name}</div>
                         <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
                     `;
                     el.onclick = () => {
-                        player.deck.splice(index, 1); // Retire la carte
-                        saveData(); // Sauvegarde temps réel
-                        renderManager(); // Rafraîchit la vue
+                        // On modifie le joueur "frais"
+                        freshPlayer.deck.splice(index, 1); 
+                        saveData(); // Sauvegarde réseau
+                        renderManager(); // Rechargement immédiat de la vue
                     };
                     currentList.appendChild(el);
                 }
@@ -1469,9 +1484,10 @@ function openDeckManager(player) {
         currentSection.appendChild(currentList);
         container.appendChild(currentSection);
 
-        // 2. BIBLIOTHÈQUE (Ce qu'on peut donner)
+        // --- ZONE 2 : BIBLIOTHÈQUE ---
         const librarySection = document.createElement('div');
         librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Ajouter (Cliquer pour donner)</h4>';
+        
         const libraryList = document.createElement('div');
         libraryList.className = 'deck-manager-section mini-card-grid';
         
@@ -1480,14 +1496,14 @@ function openDeckManager(player) {
             el.className = 'mini-card';
             el.style.borderColor = 'green';
             el.innerHTML = `
-                <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50'">
+                <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
                 <div>${card.name}</div>
                 <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
             `;
             el.onclick = () => {
-                player.deck.push(card.id); // Ajoute l'ID
-                saveData(); // Sauvegarde temps réel (déclenchera l'anim chez le joueur)
-                renderManager(); // Rafraîchit
+                freshPlayer.deck.push(card.id);
+                saveData(); // L'animation se déclenchera chez le joueur
+                renderManager(); // Rechargement immédiat de la vue
             };
             libraryList.appendChild(el);
         });
@@ -1496,7 +1512,8 @@ function openDeckManager(player) {
         container.appendChild(librarySection);
     };
 
-    renderManager(); // Premier affichage
+    // Premier lancement
+    renderManager();
 
     // Reset du bouton save à la fermeture
     modal.querySelector('.close-form').onclick = () => {
