@@ -1427,26 +1427,27 @@ function showQRCode() {
     new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
 }
 
-// --- GESTIONNAIRE DE DECK (MJ) - VERSION PNJ COMPATIBLE ---
+// --- GESTIONNAIRE DE DECK (MJ) - VERSION FLUIDE ---
 function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    // On garde l'ID pour retrouver l'entité fraîche à chaque fois
+    // On stocke l'ID pour toujours retrouver la version à jour du perso
     const targetId = entityArg.id;
 
-    saveBtn.style.display = 'none'; // Pas de bouton save, action immédiate
+    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
     modal.style.display = 'flex';
 
+    // Fonction de rendu interne
     const renderManager = () => {
-        // 1. RECHERCHE GLOBALE (JOUEURS + PNJ)
+        // 1. On récupère l'entité fraîche dans les données globales
         const freshEntity = findEntityById(targetId);
         
-        // Si l'entité n'existe plus (supprimée entre temps), on ferme
+        // Si l'entité n'existe plus, on ferme
         if (!freshEntity) return modal.style.display = 'none';
 
-        // Mise à jour du titre
+        // Titre dynamique
         const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
         document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
         
@@ -1459,8 +1460,7 @@ function openDeckManager(entityArg) {
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        // Initialisation si deck undefined (sécurité pour vieux PNJ)
-        if (!freshEntity.deck) freshEntity.deck = [];
+        if (!freshEntity.deck) freshEntity.deck = []; // Sécurité
 
         if (freshEntity.deck.length === 0) {
             currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
@@ -1470,16 +1470,23 @@ function openDeckManager(entityArg) {
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
-                    el.style.borderColor = 'red';
+                    el.style.borderColor = '#ff4d4d'; // Rouge léger
+                    el.title = "Retirer du deck";
                     el.innerHTML = `
                         <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
-                        <div>${card.name}</div>
+                        <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                         <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
                     `;
                     el.onclick = () => {
+                        // 1. Modification Locale
                         freshEntity.deck.splice(index, 1); 
-                        saveData(); 
-                        renderManager(); // On reste dans la fenêtre
+                        
+                        // 2. Mise à jour Visuelle Immédiate (La modale)
+                        renderManager(); 
+                        
+                        // 3. Envoi Silencieux au Cloud (Sans recharger toute la page 'saveData')
+                        // On utilise l'import dynamique pour être sûr d'avoir la fonction
+                        import('./cloud.js').then(mod => mod.syncGameData(gameData));
                     };
                     currentList.appendChild(el);
                 }
@@ -1498,16 +1505,22 @@ function openDeckManager(entityArg) {
         gameData.cards.forEach(card => {
             const el = document.createElement('div');
             el.className = 'mini-card';
-            el.style.borderColor = 'green';
+            el.style.borderColor = '#4caf50'; // Vert
+            el.title = "Ajouter au deck";
             el.innerHTML = `
                 <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
-                <div>${card.name}</div>
+                <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                 <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
             `;
             el.onclick = () => {
+                // 1. Modification Locale
                 freshEntity.deck.push(card.id);
-                saveData();
-                renderManager(); // On reste dans la fenêtre
+                
+                // 2. Mise à jour Visuelle Immédiate
+                renderManager();
+                
+                // 3. Envoi Silencieux
+                import('./cloud.js').then(mod => mod.syncGameData(gameData));
             };
             libraryList.appendChild(el);
         });
@@ -1516,11 +1529,15 @@ function openDeckManager(entityArg) {
         container.appendChild(librarySection);
     };
 
+    // Lancement initial
     renderManager();
 
+    // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
         modal.style.display = 'none';
+        // Petit render global à la fermeture pour être sûr que tout est synchro
+        render(); 
     };
 }
 
