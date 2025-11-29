@@ -256,7 +256,7 @@ function renderMapModule(container, isEditable) {
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
-    img.onerror = function() { this.src = 'https://via.placeholder.com/800x600?text=Image+Introuvable'; };
+    img.onerror = function() { this.src = '.assets/map.png'; };
     
     if(isEditable) {
         img.addEventListener('click', (e) => {
