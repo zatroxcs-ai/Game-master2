@@ -376,10 +376,18 @@ function openMapManager() {
         modal.style.display = 'none'; 
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom du lieu', value: '' },
-            { name: 'url', label: 'URL Image', value: './assets/map.png' },
+            { name: 'url', label: 'URL Image (laisser vide pour défaut)', value: '' }, // Vide par défaut
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            gameData.maps.push({ id: generateId(), name: data.name, url: data.url, desc: data.desc });
+            // FIX 1 : Si l'URL est vide, on force une image locale par défaut
+            const safeUrl = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+
+            gameData.maps.push({ 
+                id: generateId(), 
+                name: data.name || 'Sans Nom', // Nom par défaut 
+                url: safeUrl, 
+                desc: data.desc 
+            });
             saveData(`Carte créée : ${data.name}`);
             setTimeout(() => openMapManager(), 100); 
         });
@@ -397,17 +405,17 @@ function openMapManager() {
         row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
         row.style.textAlign = 'left';
         
-        // --- FIX DE LA BOUCLE INFINIE ICI ---
-        // J'ai ajouté 'this.onerror=null' et changé le lien de secours pour un plus fiable
-        const imgHtml = `<img src="${m.url}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">`;
-
+        // FIX 2 : Gestion d'erreur sans réseau (on remplace l'image par un emoji si elle plante)
+        // On évite les liens externes type 'placehold.co' qui causent tes bugs
         row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center">
                 <div>
                     <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
                     <small style="opacity:0.7">${m.desc || ''}</small>
                 </div>
-                ${imgHtml}
+                <div class="map-thumb-container" style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
+                     <img src="${m.url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='🗺️'">
+                </div>
             </div>
             <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
                 ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
@@ -432,7 +440,10 @@ function openMapManager() {
                 { name: 'url', label: 'URL', value: m.url },
                 { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
             ], (data) => {
-                m.name = data.name; m.url = data.url; m.desc = data.desc;
+                m.name = data.name; 
+                // Si vide à la modif, on garde l'ancienne ou on met défaut
+                m.url = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+                m.desc = data.desc;
                 saveData();
                 setTimeout(() => openMapManager(), 100);
             });
