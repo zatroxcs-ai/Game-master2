@@ -202,9 +202,29 @@ function render() {
 }
 
 function renderDM() {
+    // Header et Navigation
+    const header = document.querySelector('#dm-screen header');
+    // On met à jour la navigation pour inclure l'onglet Système
+    header.querySelector('#dm-nav').innerHTML = `
+        <button data-tab="map" class="${currentTab === 'map' ? 'active' : ''}">Carte</button>
+        <button data-tab="players" class="${currentTab === 'players' ? 'active' : ''}">Joueurs</button>
+        <button data-tab="chat" class="${currentTab === 'chat' ? 'active' : ''}">Chat</button>
+        <button data-tab="cards" class="${currentTab === 'cards' ? 'active' : ''}">Cartes</button>
+        <button data-tab="relations" class="${currentTab === 'relations' ? 'active' : ''}">Relations</button>
+        <button data-tab="quests" class="${currentTab === 'quests' ? 'active' : ''}">Quêtes</button>
+        <button data-tab="journal" class="${currentTab === 'journal' ? 'active' : ''}">Journal</button>
+        <button data-tab="system" class="${currentTab === 'system' ? 'active' : ''}" style="color:#ff5e5e">💾 Système</button>
+    `;
+
+    // Réattacher les événements de clic sur le nouveau menu
+    header.querySelectorAll('#dm-nav button').forEach(btn => {
+        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'dm'));
+    });
+
     const container = document.getElementById('dm-content');
     container.innerHTML = '';
 
+    // Routing des onglets
     if (currentTab === 'map') renderMapModule(container, true);
     else if (currentTab === 'players') renderPlayersModule(container);
     else if (currentTab === 'chat') renderChatModule(container);
@@ -212,6 +232,7 @@ function renderDM() {
     else if (currentTab === 'relations') renderRelationsModule(container);
     else if (currentTab === 'quests') renderQuestsModule(container);
     else if (currentTab === 'journal') renderJournalModule(container);
+    else if (currentTab === 'system') renderSystemModule(container); // <--- NOUVEAU
 }
 
 function renderPlayer() {
@@ -1505,4 +1526,95 @@ function triggerChestAnimation(newCardId) {
     }, 5000);
     
     overlay.onclick = () => overlay.classList.add('hidden');
+}
+
+// 8. SYSTÈME (SAUVEGARDE & IMPORT)
+function renderSystemModule(container) {
+    container.innerHTML = `<h2>Gestion de la Session</h2>`;
+
+    // 1. BLOC EXPORT (Sauvegarder)
+    const exportBox = document.createElement('div');
+    exportBox.className = 'system-box';
+    exportBox.innerHTML = `
+        <h3 style="color:var(--cr-blue)">💾 Sauvegarder la partie</h3>
+        <p>Téléchargez un fichier .json contenant toutes les données actuelles (Joueurs, Cartes, Map, Chat...).</p>
+        <button id="btn-backup" class="btn btn-primary">Télécharger la Sauvegarde</button>
+    `;
+    
+    exportBox.querySelector('#btn-backup').onclick = () => {
+        const dataStr = JSON.stringify(gameData, null, 2); // Beau JSON
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        // Création d'un lien invisible pour déclencher le téléchargement
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().split('T')[0];
+        a.download = `manager-royale-backup-${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+    container.appendChild(exportBox);
+
+    // 2. BLOC IMPORT (Restaurer)
+    const importBox = document.createElement('div');
+    importBox.className = 'system-box';
+    importBox.style.border = '2px dashed #fcc22d'; // Bordure dorée attention
+    importBox.innerHTML = `
+        <h3 style="color:#d35400">⚠️ Restaurer une sauvegarde</h3>
+        <p>Attention : Cela <strong>écrasera</strong> toutes les données actuelles de la session pour tous les joueurs !</p>
+        
+        <div class="file-upload-wrapper">
+            <button class="btn btn-secondary">Choisir un fichier .JSON</button>
+            <input type="file" id="file-input" accept=".json">
+        </div>
+    `;
+
+    importBox.querySelector('#file-input').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (confirm("Êtes-vous sûr de vouloir écraser la partie actuelle avec ce fichier ? Cette action est irréversible.")) {
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Vérification sommaire que c'est bien un fichier Manager Royale
+                    if (!importedData.players || !importedData.config) {
+                        throw new Error("Format de fichier invalide.");
+                    }
+
+                    // Mise à jour locale
+                    gameData = importedData;
+                    
+                    // Envoi à Supabase (propage à tout le monde)
+                    saveData("♻️ Restauration du système effectuée.");
+                    
+                    alert("Succès ! La partie a été restaurée.");
+                    render(); // Rafraîchir l'interface
+                    
+                } catch (err) {
+                    alert("Erreur : Le fichier est corrompu ou invalide.\n" + err.message);
+                }
+            };
+            
+            reader.readAsText(file);
+        } else {
+            // Reset l'input si annulé
+            e.target.value = ''; 
+        }
+    };
+    container.appendChild(importBox);
+
+    // 3. BLOC INFO TECHNIQUE
+    const infoBox = document.createElement('div');
+    infoBox.style.textAlign = 'center';
+    infoBox.style.opacity = '0.6';
+    infoBox.style.marginTop = '20px';
+    infoBox.innerHTML = `<small>Session ID : <strong>${document.getElementById('session-input').value}</strong></small>`;
+    container.appendChild(infoBox);
 }
