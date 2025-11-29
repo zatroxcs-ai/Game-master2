@@ -288,3 +288,85 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 .play-hint {
     font-size: 0.7rem; color: #888; margin-top: -5px; margin-bottom: 10px;
 }
+
+/* --- REFONTE MOBILE (APP STYLE) --- */
+
+/* 1. Conteneur Principal : Fixe la hauteur pour éviter le scroll de page global */
+#player-screen {
+    background-color: #1c2e4a; /* Fond bleu nuit CR */
+    background-image: radial-gradient(#2a4b70 2px, transparent 2px); /* Texture petits points */
+    background-size: 20px 20px;
+    height: 100vh; /* Fallback */
+    height: 100dvh; /* Dynamic Viewport Height (Fixe le bug Safari mobile) */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Empêche le rebond élastique de Safari */
+}
+
+/* 2. Zone de Contenu (Scrollable) */
+#player-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    padding-bottom: 80px; /* Espace pour ne pas cacher le contenu derrière le menu */
+    -webkit-overflow-scrolling: touch; /* Scroll fluide iOS */
+}
+
+/* 3. Barre de Navigation (Dock en bas) */
+#player-nav {
+    flex-shrink: 0;
+    height: 70px; /* Hauteur fixe */
+    background: #111;
+    border-top: 4px solid var(--cr-wood);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom); /* Protège la barre home iPhone X+ */
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+#player-nav button {
+    background: none;
+    border: none;
+    box-shadow: none; /* Reset du style bouton par défaut */
+    color: #888;
+    font-size: 0.7rem;
+    padding: 5px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+#player-nav button .nav-icon {
+    font-size: 1.5rem;
+    display: block;
+    filter: grayscale(100%);
+    transition: transform 0.2s;
+}
+
+/* État Actif (Bouton sélectionné) */
+#player-nav button.active {
+    color: var(--cr-gold);
+    border-bottom: none; /* Enlève la bordure jaune moche de l'ancien code */
+}
+
+#player-nav button.active .nav-icon {
+    filter: grayscale(0%);
+    transform: translateY(-5px) scale(1.2);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* 4. Cartes et Panneaux (Style CR) */
+.player-dashboard .profile-header {
+    margin-top: 0; /* Colle au haut de l'écran */
+    border-radius: 0 0 25px 25px;
+    background: linear-gradient(180deg, #3867d6 0%, #2a4b70 100%);
+    border-bottom: 4px solid rgba(0,0,0,0.2);
+}
+
+/* Reset général pour mobile */
+h2, h3 { color: white; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+p { color: #ddd; }
