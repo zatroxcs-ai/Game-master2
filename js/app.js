@@ -286,7 +286,20 @@ function renderMapModule(container, isEditable) {
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
-    img.onerror = function() { this.src = '.assets/map.png'; };
+    
+    // --- FIX BOUCLE INFINIE ---
+    img.onerror = function() { 
+        // 1. On coupe l'écouteur pour ne pas qu'il se relance
+        this.onerror = null; 
+        
+        // 2. On met une image de secours très simple
+        this.src = 'https://placehold.co/800x600/333/white?text=Image+Introuvable';
+        
+        // 3. (Optionnel) Si même placehold.co est bloqué, on met un fond gris simple
+        this.style.backgroundColor = '#333';
+        this.alt = "Image introuvable : Vérifiez l'URL";
+    };
+    // -------------------------
     
     if(isEditable) {
         img.addEventListener('click', (e) => {
@@ -384,13 +397,17 @@ function openMapManager() {
         row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
         row.style.textAlign = 'left';
         
+        // --- FIX DE LA BOUCLE INFINIE ICI ---
+        // J'ai ajouté 'this.onerror=null' et changé le lien de secours pour un plus fiable
+        const imgHtml = `<img src="${m.url}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">`;
+
         row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center">
                 <div>
                     <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
                     <small style="opacity:0.7">${m.desc || ''}</small>
                 </div>
-                <img src="${m.url}" onerror="this.src='https://via.placeholder.com/50'" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">
+                ${imgHtml}
             </div>
             <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
                 ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
