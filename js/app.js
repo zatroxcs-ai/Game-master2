@@ -800,23 +800,35 @@ function renderCardsModule(container) {
     container.appendChild(grid);
 }
 
-// 5. RELATIONS V2 (VUE VISUELLE)
+// 5. RELATIONS V2 (FIX COULEURS + HOVER)
 function renderRelationsModule(container) {
     if (!gameData.relations) gameData.relations = [];
     const entities = [...gameData.players, ...gameData.npcs];
 
     if(entities.length < 2) {
-        return container.innerHTML = '<div class="panel">Il faut au moins 2 personnages pour avoir des relations.</div>';
+        return container.innerHTML = '<div class="panel" style="color:#333">Il faut au moins 2 personnages pour avoir des relations.</div>';
     }
 
-    // Sélection par défaut du premier personnage si aucun n'est choisi
+    // Sélection par défaut
     if (!selectedRelCharId || !entities.find(e => e.id === selectedRelCharId)) {
         selectedRelCharId = entities[0].id;
     }
 
-    container.innerHTML = `<h2>Réseau d'Influence</h2><p class="hint">Sélectionnez un personnage en haut pour voir son point de vue.</p>`;
+    const selectedEntity = entities.find(e => e.id === selectedRelCharId);
 
-    // 1. SÉLECTEUR (Haut)
+    // 1. EN-TÊTE (Avec couleurs forcées et Zone de Nom)
+    container.innerHTML = `
+        <h2 style="color:var(--cr-blue-dark); text-align:center; margin-bottom:5px;">Réseau d'Influence</h2>
+        <p class="hint" style="color:#555; text-align:center; margin:0 0 10px 0;">
+            Sélectionnez un personnage pour voir son point de vue.
+        </p>
+        
+        <div id="rel-name-display" style="height:30px; line-height:30px; text-align:center; font-weight:900; color:var(--cr-blue); font-size:1.2rem; text-transform:uppercase; margin-bottom:5px;">
+            ${selectedEntity ? selectedEntity.name : ''}
+        </div>
+    `;
+
+    // 2. SÉLECTEUR (Haut)
     const selector = document.createElement('div');
     selector.className = 'rel-selector';
     
@@ -824,9 +836,19 @@ function renderRelationsModule(container) {
         const img = document.createElement('img');
         img.src = e.avatar;
         img.className = `rel-avatar-select ${e.id === selectedRelCharId ? 'active' : ''}`;
-        img.title = e.name;
+        img.title = e.name; // Tooltip natif au cas où
         img.onerror = function() { this.src='https://placehold.co/60'; };
         
+        // --- INTERACTION HOVER ---
+        img.onmouseenter = () => {
+            document.getElementById('rel-name-display').innerText = e.name;
+        };
+        img.onmouseleave = () => {
+            // Quand on quitte, on remet le nom du perso sélectionné
+            const current = entities.find(x => x.id === selectedRelCharId);
+            document.getElementById('rel-name-display').innerText = current ? current.name : '';
+        };
+
         img.onclick = () => {
             selectedRelCharId = e.id;
             renderRelationsModule(container); // Recharger la vue
@@ -835,50 +857,45 @@ function renderRelationsModule(container) {
     });
     container.appendChild(selector);
 
-    // 2. LE TABLEAU DE BORD (3 Colonnes)
+    // 3. LE TABLEAU DE BORD (3 Colonnes)
     const board = document.createElement('div');
     board.className = 'rel-board';
 
-    // On prépare les 3 colonnes
     const cols = {
         friendly: { title: '💚 Alliés / Amis', color: '#28a745', list: [] },
         neutral:  { title: '😐 Neutres / Inconnus', color: '#6c757d', list: [] },
         hostile:  { title: '❤️ Hostiles / Ennemis', color: '#dc3545', list: [] }
     };
 
-    // On trie les autres entités
     entities.forEach(target => {
-        if (target.id === selectedRelCharId) return; // On ne s'affiche pas soi-même
+        if (target.id === selectedRelCharId) return; 
 
-        // Chercher la relation
         const rel = gameData.relations.find(r => r.source === selectedRelCharId && r.target === target.id);
         let status = rel ? rel.status : 'neutral';
         
-        // Mapping simple : 'ally' va avec 'friendly' pour l'affichage visuel
         let displayCat = status;
         if (status === 'ally') displayCat = 'friendly';
 
         cols[displayCat].list.push({ ...target, realStatus: status });
     });
 
-    // Génération HTML des colonnes
     Object.keys(cols).forEach(key => {
         const colData = cols[key];
         const colDiv = document.createElement('div');
         colDiv.className = 'rel-column';
         colDiv.style.borderTop = `4px solid ${colData.color}`;
         
-        colDiv.innerHTML = `<h3 style="color:${colData.color}">${colData.title}</h3>`;
+        // Couleur forcée ici aussi pour être sûr
+        colDiv.innerHTML = `<h3 style="color:${colData.color}; margin-top:5px;">${colData.title}</h3>`;
         
         if (colData.list.length === 0) {
-            colDiv.innerHTML += '<p style="opacity:0.5; font-size:0.8rem; text-align:center">- Vide -</p>';
+            colDiv.innerHTML += '<p style="opacity:0.5; font-size:0.8rem; text-align:center; color:#888;">- Vide -</p>';
         } else {
             colData.list.forEach(char => {
                 const card = document.createElement('div');
                 card.className = 'rel-card';
                 card.style.borderLeftColor = colData.color;
                 
-                // Icône spécifique selon le statut précis
                 let icon = '😐';
                 if(char.realStatus === 'friendly') icon = '🙂';
                 if(char.realStatus === 'ally') icon = '🛡️';
@@ -886,18 +903,15 @@ function renderRelationsModule(container) {
 
                 card.innerHTML = `
                     <img src="${char.avatar}" onerror="this.src='https://placehold.co/40'">
-                    <div style="flex:1">
-                        <strong>${char.name}</strong>
+                    <div style="flex:1; color:#333;"> <strong>${char.name}</strong>
                     </div>
                     <div style="font-size:1.2rem">${icon}</div>
                 `;
 
-                // Interaction : Cycle au clic
                 if(currentUser.role === 'dm') {
                     card.title = "Cliquez pour changer la relation";
                     card.onclick = () => {
                         cycleRelation(selectedRelCharId, char.id, char.realStatus);
-                        // Pas besoin de recharger manuellement, saveData() le fera via le cloud
                     };
                 } else {
                     card.style.cursor = 'default';
@@ -1395,77 +1409,18 @@ function playCardAction(playerName, card) {
     switchTab(currentUser.role === 'dm' ? 'chat' : 'p-chat', currentUser.role);
 }
 
-// AFFICHER LE QR CODE (DYNAMIQUE)
 function showQRCode() {
     const modal = document.getElementById('modal-qr');
-    const modalContent = modal.querySelector('.modal-content');
-    
-    // On réinitialise le contenu HTML de la modale pour insérer nos contrôles proprement
-    modalContent.innerHTML = `
-        <span class="close-modal" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px;">&times;</span>
-        <h3>Rejoindre la partie</h3>
-        
-        <div style="margin-bottom:15px;">
-            <label style="display:block; font-size:0.8rem; color:#666; margin-bottom:5px;">Sélectionnez le profil à connecter :</label>
-            <select id="qr-target-select" style="padding:10px; width:100%; border-radius:5px; border:1px solid #ccc; font-size:1rem;">
-                <option value="new">✨ Nouveau Joueur (Lien générique)</option>
-            </select>
-        </div>
-
-        <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
-        
-        <p id="qr-hint" style="font-size:0.9rem; color:#444;">Scannez pour rejoindre.</p>
-    `;
-
-    // 1. Remplissage du Select avec les joueurs existants
-    const select = document.getElementById('qr-target-select');
-    gameData.players.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.innerText = `👤 ${p.name}`;
-        select.appendChild(opt);
-    });
-
-    // 2. Fonction de génération du QR
-    const generateQR = () => {
-        const qrContainer = document.getElementById('qrcode');
-        qrContainer.innerHTML = ''; // Nettoyer l'ancien QR
-
-        const baseUrl = window.location.href.split('?')[0];
-        const session = document.getElementById('session-input').value;
-        const selectedId = select.value;
-
-        let targetUrl = `${baseUrl}?session=${session}`;
-
-        // Si on choisit un joueur spécifique, on ajoute son ID dans l'URL
-        if (selectedId !== 'new') {
-            targetUrl += `&role=player&id=${selectedId}`;
-            document.getElementById('qr-hint').innerText = `Connexion directe en tant que : ${gameData.players.find(p=>p.id===selectedId).name}`;
-        } else {
-            document.getElementById('qr-hint').innerText = "Lien générique pour un nouveau visiteur.";
-        }
-
-        new QRCode(qrContainer, {
-            text: targetUrl,
-            width: 200,
-            height: 200,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-    };
-
-    // 3. Événements
-    select.onchange = generateQR; // Régénérer quand on change d'option
-    
-    // Gestion fermeture
-    modal.querySelector('.close-modal').onclick = () => {
-        modal.style.display = 'none';
-    };
-
-    // Affichage initial
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
     modal.style.display = 'flex';
-    generateQR(); // Générer le QR par défaut (Nouveau joueur)
+
+    const baseUrl = window.location.href.split('?')[0];
+    const session = document.getElementById('session-input').value;
+    let targetUrl = `${baseUrl}?session=${session}`;
+    if(gameData.players.length > 0) targetUrl += `&role=player&id=${gameData.players[0].id}`;
+
+    new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
 }
 
 // --- GESTIONNAIRE DE DECK (MJ) ---
