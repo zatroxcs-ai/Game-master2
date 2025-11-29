@@ -1482,7 +1482,7 @@ function openDeckManager(entityArg) {
                     el.onclick = () => {
                         freshEntity.deck.splice(index, 1); // 1. Modifie le tableau local
                         renderManager();                   // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
-                        syncGameData(gameData);            // 3. Sauvegarde silencieuse
+                        window.syncGameData(gameData);            // 3. Sauvegarde silencieuse
                     };
                     currentList.appendChild(el);
                 }
@@ -1513,7 +1513,7 @@ function openDeckManager(entityArg) {
             el.onclick = () => {
                 freshEntity.deck.push(card.id); // 1. Modifie le tableau local
                 renderManager();                // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
-                syncGameData(gameData);         // 3. Sauvegarde silencieuse
+                window.syncGameData(gameData);         // 3. Sauvegarde silencieuse
             };
             libraryList.appendChild(el);
         });

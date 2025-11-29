@@ -84,3 +84,5 @@ export async function syncGameData(gameData) {
 
     if (error) console.error("Erreur de sauvegarde:", error);
 }
+
+window.syncGameData = syncGameData;
