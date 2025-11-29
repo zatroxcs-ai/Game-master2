@@ -104,18 +104,6 @@ function enterGame(sid) {
     render();
 }
 
-function updateLocalData(newData) {
-    if (currentUser.role === 'player') {
-        const meNew = newData.players.find(p => p.id === currentUser.id);
-        if (meNew && meNew.deck.length > prevDeckSize) {
-            triggerChestAnimation(meNew.deck[meNew.deck.length - 1]);
-        }
-        if (meNew) prevDeckSize = meNew.deck.length;
-    }
-    gameData = newData;
-    render();
-}
-
 function saveData(actionLog = null) {
     if (actionLog) {
         gameData.logs.unshift({ text: actionLog, timestamp: new Date().toISOString() });
@@ -267,7 +255,7 @@ function renderMapModule(container, isEditable) {
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
-    img.onerror = function() { this.src = 'assets/map.png'; };
+    img.onerror = function() { this.src = '.assets/map.png'; };
     
     if(isEditable) {
         img.addEventListener('click', (e) => {
@@ -1251,19 +1239,67 @@ function openDeckManager(player) {
     };
 }
 
+// Remplace la fonction updateLocalData existante
+function updateLocalData(newData) {
+    console.log("📥 Données reçues via Realtime"); // Log pour vérifier
+
+    // Détection pour le Joueur : Est-ce que mon deck a grandi ?
+    if (currentUser.role === 'player') {
+        const meNew = newData.players.find(p => p.id === currentUser.id);
+        
+        // Sécurité : on s'assure que prevDeckSize est initialisé
+        if (typeof prevDeckSize === 'undefined') prevDeckSize = meNew ? meNew.deck.length : 0;
+
+        if (meNew && meNew.deck.length > prevDeckSize) {
+            console.log("🎁 NOUVELLE CARTE DÉTECTÉE !");
+            // On récupère la dernière carte ajoutée
+            const newCardId = meNew.deck[meNew.deck.length - 1];
+            triggerChestAnimation(newCardId);
+        }
+        
+        // Mise à jour de la taille de référence pour la prochaine fois
+        if (meNew) prevDeckSize = meNew.deck.length;
+    }
+
+    gameData = newData;
+    render(); // Met à jour l'affichage (Deck, Or, etc.)
+}
+
+// Remplace la fonction triggerChestAnimation existante
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
     const display = document.getElementById('new-card-display');
+    
+    // On cherche la carte dans la base de données
     const card = gameData.cards.find(c => c.id === newCardId);
-    if(!card) return;
+    
+    if(!card) {
+        console.error("Carte introuvable pour l'animation:", newCardId);
+        return;
+    }
+
+    // Son de coffre (Optionnel, marche selon navigateur)
+    // const audio = new Audio('https://raw.githubusercontent.com/zatroxcs-ai/Game-master2/main/assets/chest_open.mp3');
+    // audio.play().catch(e => console.log("Audio bloqué par navigateur"));
 
     display.innerHTML = `
-        <div class="clash-card" style="transform: scale(1.5)">
+        <div class="clash-card" style="transform: scale(1.5); box-shadow: 0 0 50px white;">
             <div class="cost">${card.cost}</div>
-            <img src="${card.img}">
+            <img src="${card.img}" onerror="this.src='https://placehold.co/100x120?text=?'">
             <h4>${card.name}</h4>
         </div>
+        <p style="margin-top:20px; font-size:1.2rem; color:#ffd700; text-shadow:0 2px 0 black">
+            Vous avez obtenu : <strong>${card.name}</strong> !
+        </p>
     `;
+    
     overlay.classList.remove('hidden');
-    setTimeout(() => overlay.classList.add('hidden'), 4000);
+    
+    // Fermeture automatique après 5 secondes
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+    }, 5000);
+    
+    // Fermeture au clic (si le joueur est pressé)
+    overlay.onclick = () => overlay.classList.add('hidden');
 }
