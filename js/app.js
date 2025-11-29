@@ -514,45 +514,180 @@ function renderPlayersModule(container) {
     container.appendChild(list);
 }
 
-// 3. CHAT
+// 3. CHAT (MESSAGERIE PRIVÉE + DÉS)
 function renderChatModule(container) {
     const wrapper = document.createElement('div');
     wrapper.className = 'chat-window';
     
+    // --- 1. ZONE D'AFFICHAGE DES MESSAGES ---
     const messages = document.createElement('div');
     messages.className = 'chat-messages';
     
     gameData.chat.forEach(msg => {
+        // LOGIQUE DE FILTRAGE (Qui voit quoi ?)
+        const targetId = msg.target || 'global'; // Par défaut 'global' pour les vieux messages
+        const myId = currentUser.role === 'dm' ? 'dm' : currentUser.id;
+        const senderId = msg.senderId || 'inconnu'; // On devra stocker l'ID maintenant
+
+        // On affiche SI : Global OU C'est moi qui envoie OU C'est pour moi
+        const shouldShow = (targetId === 'global') || (senderId === myId) || (targetId === myId);
+
+        if (!shouldShow) return; // On saute ce message, il ne nous concerne pas
+
+        // STYLING
+        const isSelf = senderId === myId;
+        const isWhisper = targetId !== 'global';
+        const isDice = msg.text.startsWith('🎲');
+        
         const div = document.createElement('div');
-        const isSelf = msg.sender === currentUser.id || (currentUser.role === 'dm' && msg.sender === 'MJ');
         div.className = `message ${isSelf ? 'self' : ''}`;
+        
+        let bubbleStyle = '';
+        let prefix = '';
+
+        if (isWhisper) {
+            bubbleStyle = 'background:#e0c3fc; color:#4a148c; border:1px solid #7c4dff;'; // Violet style
+            // On affiche "À X" ou "De X"
+            if(isSelf) {
+                // Je cherche le nom du destinataire pour l'afficher
+                let targetName = 'MJ';
+                if(targetId !== 'dm') {
+                    const t = gameData.players.find(p => p.id === targetId);
+                    if(t) targetName = t.name;
+                }
+                prefix = `<small style="display:block; font-weight:bold; color:#4a148c">🔒 À ${targetName}</small>`;
+            } else {
+                prefix = `<small style="display:block; font-weight:bold; color:#4a148c">🔒 De ${msg.sender}</small>`;
+            }
+        }
+        
+        if (isDice) {
+            bubbleStyle = 'background:var(--cr-gold); color:black; font-weight:bold; border:2px solid black';
+        }
+
         div.innerHTML = `
-            <small>${msg.sender} - ${formatTime(msg.timestamp)}</small>
-            <div class="bubble">${msg.text}</div>
+            <small>${isSelf ? 'Moi' : msg.sender} - ${formatTime(msg.timestamp)}</small>
+            <div class="bubble" style="${bubbleStyle}">
+                ${prefix}
+                ${msg.text}
+            </div>
         `;
         messages.appendChild(div);
     });
     
-    const inputArea = document.createElement('div');
-    inputArea.className = 'chat-input-area';
-    inputArea.innerHTML = `
-        <input type="text" id="chat-input" style="flex:1; padding:10px;" placeholder="Message...">
-        <button class="btn btn-primary" id="chat-send">Envoyer</button>
-    `;
+    // --- 2. ZONE DE CONTRÔLE (BAS) ---
+    const controls = document.createElement('div');
+    controls.style.padding = '10px';
+    controls.style.background = '#ddd';
+    controls.style.borderTop = '2px solid white';
+
+    // A. BARRE DE DÉS
+    const diceBar = document.createElement('div');
+    diceBar.style.marginBottom = '5px';
+    diceBar.style.display = 'flex';
+    diceBar.style.gap = '5px';
+    
+    ['d6', 'd20', 'd100'].forEach(type => {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.style.padding = '2px 8px';
+        btn.style.fontSize = '0.7rem';
+        btn.style.background = 'white';
+        btn.style.color = '#333';
+        btn.style.borderBottom = '2px solid #999';
+        btn.innerText = type;
+        
+        btn.onclick = () => {
+            const max = parseInt(type.substring(1));
+            const result = Math.floor(Math.random() * max) + 1;
+            sendMessage(`🎲 ${type} : ${result}`, true); // true = c'est un dé
+        };
+        diceBar.appendChild(btn);
+    });
+
+    // B. INPUTS (Sélecteur + Texte + Bouton)
+    const inputRow = document.createElement('div');
+    inputRow.style.display = 'flex';
+    inputRow.style.gap = '5px';
+
+    // Sélecteur de destinataire
+    const select = document.createElement('select');
+    select.id = 'chat-target';
+    select.style.maxWidth = '100px';
+    select.style.borderRadius = '5px';
+    
+    // Option Global
+    select.innerHTML = '<option value="global">📢 Global</option>';
+    
+    // Option MJ (si je suis joueur)
+    if(currentUser.role !== 'dm') {
+        select.innerHTML += '<option value="dm">👑 MJ</option>';
+    }
+    
+    // Options Joueurs (si je suis MJ ou pour parler entre joueurs)
+    gameData.players.forEach(p => {
+        // Je ne m'affiche pas moi-même dans la liste
+        if(p.id !== currentUser.id) {
+            select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+        }
+    });
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'chat-input';
+    input.style.flex = '1';
+    input.style.padding = '10px';
+    input.style.borderRadius = '5px';
+    input.style.border = '1px solid #ccc';
+    input.placeholder = 'Message...';
+
+    // Gestion de la touche "Entrée"
+    input.onkeydown = (e) => { if(e.key === 'Enter') confirmSend(); };
+
+    const btnSend = document.createElement('button');
+    btnSend.className = 'btn btn-primary';
+    btnSend.innerText = 'Envoyer';
+    btnSend.onclick = () => confirmSend();
+
+    inputRow.appendChild(select);
+    inputRow.appendChild(input);
+    inputRow.appendChild(btnSend);
+
+    controls.appendChild(diceBar);
+    controls.appendChild(inputRow);
 
     wrapper.appendChild(messages);
-    wrapper.appendChild(inputArea);
+    wrapper.appendChild(controls);
     container.appendChild(wrapper);
+
+    // Scroll en bas auto
     messages.scrollTop = messages.scrollHeight;
 
-    wrapper.querySelector('#chat-send').onclick = () => {
-        const txt = wrapper.querySelector('#chat-input').value;
+    // --- FONCTIONS INTERNES D'ENVOI ---
+
+    function confirmSend() {
+        const txt = input.value;
         if(txt) {
-            const senderName = currentUser.role === 'dm' ? 'MJ' : gameData.players.find(p => p.id === currentUser.id)?.name || 'Inconnu';
-            gameData.chat.push({ id: generateId(), sender: senderName, text: txt, timestamp: new Date().toISOString() });
-            saveData();
+            sendMessage(txt, false);
+            input.value = ''; // Reset input
         }
-    };
+    }
+
+    function sendMessage(text, isDice) {
+        const target = select.value;
+        const myId = currentUser.role === 'dm' ? 'dm' : currentUser.id;
+        const senderName = currentUser.role === 'dm' ? 'MJ' : gameData.players.find(p => p.id === currentUser.id)?.name || 'Inconnu';
+
+        gameData.chat.push({
+            id: generateId(),
+            sender: senderName,      // Nom affiché
+            senderId: myId,          // ID technique pour le filtrage
+            text: text,
+            target: target,          // 'global', 'dm', ou ID joueur
+            timestamp: new Date().toISOString()
+        });
+        saveData();
+    }
 }
 
 // 4. CARTES (ITEMS)
