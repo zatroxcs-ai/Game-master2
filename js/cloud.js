@@ -1,46 +1,61 @@
 import { APP_CONFIG } from './data.js';
 
-const { createClient } = window.supabase;
+// Vérification de sécurité
+if (!window.supabase) {
+    alert("ERREUR CRITIQUE : La librairie Supabase n'est pas chargée. Vérifiez index.html");
+}
 
+const { createClient } = window.supabase;
 const supabase = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 let currentSessionId = null;
-let onDataUpdateCallback = null;
+let subscription = null;
 
-// Initialiser la connexion
+// Initialiser la connexion et écouter les changements
 export async function joinSession(sessionId, onUpdate) {
     currentSessionId = sessionId;
-    onDataUpdateCallback = onUpdate;
 
-    // 1. Récupérer les données initiales
+    // 1. Récupérer les données initiales (Une seule fois au chargement)
     const { data, error } = await supabase
         .from('sessions')
         .select('data')
         .eq('id', sessionId)
         .single();
 
-    if (error && error.code === 'PGRST116') {
-        // La session n'existe pas, on retourne null pour que l'app demande de créer
-        return null;
-    } else if (data) {
-        onUpdate(data.data);
+    if (error || !data) {
+        console.warn("Session introuvable ou erreur:", error);
+        return false; // La session n'existe pas
     }
 
-    // 2. Souscrire aux changements temps réel
-    supabase
-        .channel('game-updates')
-        .on('postgres_changes', { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'sessions', 
-            filter: `id=eq.${sessionId}` 
-        }, payload => {
-            console.log('Update received:', payload);
-            if(payload.new && payload.new.data) {
-                onUpdate(payload.new.data);
+    // On met à jour l'interface immédiatement avec les données reçues
+    onUpdate(data.data);
+
+    // 2. Mettre en place l'écoute Temps Réel (Websockets)
+    if (subscription) supabase.removeChannel(subscription); // Nettoyage ancienne connexion
+
+    subscription = supabase
+        .channel('public:sessions') // Nom du canal
+        .on('postgres_changes', 
+            { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'sessions', 
+                filter: `id=eq.${sessionId}` 
+            }, 
+            (payload) => {
+                console.log('🔄 Mise à jour reçue !', payload);
+                if (payload.new && payload.new.data) {
+                    onUpdate(payload.new.data);
+                }
             }
-        })
-        .subscribe();
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log(`✅ Connecté au canal temps réel pour la session ${sessionId}`);
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('❌ Erreur de connexion temps réel. Vérifiez que "Realtime" est activé dans Supabase.');
+            }
+        });
         
     return true;
 }
@@ -57,14 +72,15 @@ export async function createSession(sessionId, initialData) {
     return true;
 }
 
-// Fonction pour envoyer les mises à jour (Debounced idéalement, mais simple ici)
+// Fonction pour envoyer les mises à jour
 export async function syncGameData(gameData) {
     if (!currentSessionId) return;
 
-    // Logique optimiste : on n'attend pas la réponse pour l'UI, 
-    // mais on envoie à la DB.
-    await supabase
+    // On envoie la nouvelle version à la base de données
+    const { error } = await supabase
         .from('sessions')
         .update({ data: gameData, updated_at: new Date() })
         .eq('id', currentSessionId);
+
+    if (error) console.error("Erreur de sauvegarde:", error);
 }
