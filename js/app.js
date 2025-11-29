@@ -374,7 +374,7 @@ function renderPlayersModule(container) {
 
         row.innerHTML = `
             // Ajout de onerror : si l'image plante, on met une icône générique par défaut
-<img src="${char.avatar}" onerror="map.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
+<img src="${char.avatar}" onerror="./map.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
             <div style="flex:1">
                 <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small>
                 ${resourcesHtml}
