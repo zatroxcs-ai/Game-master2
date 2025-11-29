@@ -731,50 +731,111 @@ function renderCardsModule(container) {
     container.appendChild(grid);
 }
 
-// 5. RELATIONS
+// 5. RELATIONS (MATRICE INTERACTIVE)
 function renderRelationsModule(container) {
-    container.innerHTML = '<h2>Matrice des Relations</h2><p class="hint">Cliquez sur une case pour changer la relation.</p>';
-    
-    const entities = [...gameData.players, ...gameData.npcs];
-    if(entities.length === 0) return container.innerHTML += '<p>Aucune entité créée.</p>';
+    // 1. Initialisation de sécurité
+    if (!gameData.relations) gameData.relations = [];
 
+    container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h2>Matrice des Relations</h2>
+            <small style="color:#666">Cliquez sur une case pour changer l'état</small>
+        </div>
+    `;
+    
+    // On combine Joueurs et PNJ
+    const entities = [...gameData.players, ...gameData.npcs];
+    
+    if(entities.length < 2) {
+        return container.innerHTML += '<div class="panel">Il faut au moins 2 personnages (Joueurs ou PNJ) pour définir des relations.</div>';
+    }
+
+    // 2. Légende
+    const legend = document.createElement('div');
+    legend.style.display = 'flex';
+    legend.style.gap = '10px';
+    legend.style.marginBottom = '15px';
+    legend.style.justifyContent = 'center';
+    legend.innerHTML = `
+        <span class="rel-cell rel-neutral">😐 Neutre</span>
+        <span class="rel-cell rel-friendly">🙂 Ami</span>
+        <span class="rel-cell rel-hostile">😡 Hostile</span>
+        <span class="rel-cell rel-ally">🛡️ Allié</span>
+    `;
+    container.appendChild(legend);
+
+    // 3. Construction de la Grille
     const matrix = document.createElement('div');
     matrix.className = 'relation-matrix';
-    matrix.style.gridTemplateColumns = `repeat(${entities.length + 1}, 1fr)`;
+    // CSS Grid dynamique : 1 colonne pour les noms + 1 colonne par entité
+    matrix.style.display = 'grid';
+    matrix.style.gridTemplateColumns = `100px repeat(${entities.length}, 1fr)`;
+    matrix.style.gap = '2px';
+    matrix.style.overflowX = 'auto'; // Scroll si trop de persos
 
+    // A. Coin haut-gauche (vide)
     const corner = document.createElement('div');
     corner.className = 'rel-cell rel-header';
-    corner.innerText = 'X';
+    corner.style.background = '#333';
+    corner.innerText = 'QUI \\ A';
     matrix.appendChild(corner);
 
+    // B. En-têtes Colonnes (Cibles)
     entities.forEach(e => {
         const header = document.createElement('div');
         header.className = 'rel-cell rel-header';
-        header.innerText = e.name.substring(0, 3).toUpperCase();
-        header.title = e.name;
+        header.style.writingMode = 'vertical-rl'; // Texte vertical pour gagner de la place
+        header.style.transform = 'rotate(180deg)';
+        header.style.height = '80px';
+        header.style.padding = '5px';
+        header.innerText = e.name;
         matrix.appendChild(header);
     });
 
+    // C. Lignes (Sources)
     entities.forEach(source => {
+        // En-tête Ligne (Celui qui ressent l'émotion)
         const rowHead = document.createElement('div');
         rowHead.className = 'rel-cell rel-header';
         rowHead.innerText = source.name;
+        rowHead.style.display = 'flex';
+        rowHead.style.alignItems = 'center';
+        rowHead.style.justifyContent = 'center';
+        rowHead.style.fontWeight = 'bold';
         matrix.appendChild(rowHead);
 
+        // Cellules
         entities.forEach(target => {
             const cell = document.createElement('div');
             cell.className = 'rel-cell';
+            cell.style.height = '40px';
+            cell.style.display = 'flex';
+            cell.style.alignItems = 'center';
+            cell.style.justifyContent = 'center';
+            cell.style.fontSize = '1.2rem';
             
+            // Auto-relation (Diagonale) -> Grisé
             if (source.id === target.id) {
-                cell.style.background = '#ccc';
+                cell.style.background = '#ddd';
+                cell.innerText = '—';
             } else {
+                // Trouver la relation existante
                 const rel = gameData.relations.find(r => r.source === source.id && r.target === target.id);
                 const status = rel ? rel.status : 'neutral';
                 
-                cell.className = `rel-cell rel-${status}`;
+                // Styling
+                cell.className = `rel-cell rel-${status}`; // rel-friendly, rel-hostile...
                 cell.innerText = getRelIcon(status);
                 cell.style.cursor = 'pointer';
-                cell.onclick = () => cycleRelation(source.id, target.id, status);
+                cell.title = `${source.name} est ${status} envers ${target.name}`;
+
+                // INTERACTION
+                // On utilise currentUser.role pour empêcher les joueurs de tout modifier si on veut (ici ouvert à tous pour simplicité)
+                if(currentUser.role === 'dm') {
+                    cell.onclick = () => cycleRelation(source.id, target.id, status);
+                } else {
+                    cell.style.cursor = 'default'; // Les joueurs voient mais ne touchent pas
+                }
             }
             matrix.appendChild(cell);
         });
@@ -783,11 +844,15 @@ function renderRelationsModule(container) {
     container.appendChild(matrix);
 }
 
+// Helpers internes (nécessaires pour le fonctionnement)
+
 function getRelIcon(status) {
-    if(status === 'friendly') return '🙂';
-    if(status === 'hostile') return '😡';
-    if(status === 'ally') return '🛡️';
-    return '😐';
+    switch(status) {
+        case 'friendly': return '🙂';
+        case 'hostile': return '😡';
+        case 'ally': return '🛡️';
+        default: return '😐';
+    }
 }
 
 function cycleRelation(sId, tId, currentStatus) {
@@ -795,11 +860,18 @@ function cycleRelation(sId, tId, currentStatus) {
     const nextIndex = (states.indexOf(currentStatus) + 1) % states.length;
     const nextStatus = states[nextIndex];
 
+    // Mise à jour des données
     const existingIndex = gameData.relations.findIndex(r => r.source === sId && r.target === tId);
-    if (existingIndex >= 0) gameData.relations[existingIndex].status = nextStatus;
-    else gameData.relations.push({ source: sId, target: tId, status: nextStatus });
     
-    saveData();
+    if (existingIndex >= 0) {
+        gameData.relations[existingIndex].status = nextStatus;
+    } else {
+        gameData.relations.push({ source: sId, target: tId, status: nextStatus });
+    }
+    
+    // Sauvegarde et Rafraîchissement immédiat
+    saveData(); 
+    // Note: render() est appelé automatiquement par saveData(), donc l'affichage se mettra à jour
 }
 
 // 6. QUÊTES
