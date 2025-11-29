@@ -874,68 +874,92 @@ function cycleRelation(sId, tId, currentStatus) {
     // Note: render() est appelé automatiquement par saveData(), donc l'affichage se mettra à jour
 }
 
-// 6. QUÊTES
+// 6. QUÊTES (VERSION AMÉLIORÉE)
 function renderQuestsModule(container) {
-    const formPanel = document.createElement('div');
-    formPanel.className = 'panel';
-    formPanel.innerHTML = `<h3>Nouvelle Quête</h3>`;
-    
-    let playerOptions = gameData.players.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-    
-    formPanel.innerHTML += `
-        <div style="display:grid; gap:10px; text-align:left">
-            <input type="text" id="q-title" placeholder="Titre de la quête">
-            <input type="text" id="q-reward" placeholder="Récompense (ex: 500 Or)">
-            <select id="q-assign">${playerOptions}</select>
-            <button id="btn-add-quest" class="btn btn-secondary">Publier</button>
-        </div>
-    `;
-    container.appendChild(formPanel);
+    // Bouton de création centré
+    container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-quest" class="btn btn-secondary" style="width:100%">+ Nouvelle Quête</button></div>';
 
+    // LOGIQUE DE CRÉATION
+    document.getElementById('btn-new-quest').onclick = () => {
+        // 1. Préparer la liste des PNJ (Commanditaires)
+        let npcOptions = [{value: 'board', label: '📢 Panneau d\'affichage (Aucun)'}];
+        gameData.npcs.forEach(n => {
+            npcOptions.push({ value: n.id, label: `👤 ${n.name}` });
+        });
+
+        // 2. Préparer la liste des Joueurs (Cibles)
+        let playerOptions = [];
+        gameData.players.forEach(p => {
+            playerOptions.push({ value: p.id, label: `🎮 ${p.name}` });
+        });
+
+        if(playerOptions.length === 0) return alert("Il faut créer des joueurs avant de donner des quêtes !");
+
+        // 3. Ouvrir la modale
+        openFormModal('Nouvelle Quête', [
+            { name: 'title', label: 'Titre de la quête', value: '' },
+            { name: 'desc', label: 'Description / Instructions', type: 'textarea', value: '' },
+            { name: 'reward', label: 'Récompense (ex: 500 Or)', value: '100 Or' },
+            { name: 'giver', label: 'Commanditaire (PNJ)', type: 'select', options: npcOptions, value: 'board' },
+            { name: 'assigned', label: 'Assigner au joueur', type: 'select', options: playerOptions, value: playerOptions[0].value }
+        ], (data) => {
+            gameData.quests.push({
+                id: generateId(),
+                title: data.title,
+                desc: data.desc,
+                reward: data.reward,
+                giverId: data.giver,
+                assignedTo: data.assigned,
+                status: 'active'
+            });
+            saveData(`Nouvelle quête : ${data.title}`);
+        });
+    };
+
+    // LISTE DES QUÊTES
     const list = document.createElement('div');
-    list.style.marginTop = '20px';
-    list.innerHTML = '<h3>Quêtes en cours</h3>';
-
-    gameData.quests.forEach((q, index) => {
-        const item = document.createElement('div');
-        item.className = 'panel';
-        item.style.marginBottom = '10px';
-        item.style.textAlign = 'left';
-        
-        const assignedPlayer = gameData.players.find(p => p.id === q.assignedTo);
-        const pName = assignedPlayer ? assignedPlayer.name : 'Inconnu';
-
-        item.innerHTML = `
-            <div style="display:flex; justify-content:space-between">
-                <strong>${q.title}</strong>
-                <span style="color:var(--cr-blue)">Pour: ${pName}</span>
-            </div>
-            <p>💰 ${q.reward}</p>
-            <div style="text-align:right">
-                <button class="btn" style="background:red; font-size:0.7rem" onclick="deleteQuest(${index})">Supprimer</button>
-            </div>
-        `;
-        list.appendChild(item);
-    });
-    container.appendChild(list);
-
-    setTimeout(() => {
-        const btn = document.getElementById('btn-add-quest');
-        if(btn) btn.onclick = () => {
-            const title = document.getElementById('q-title').value;
-            const reward = document.getElementById('q-reward').value;
-            const assignedTo = document.getElementById('q-assign').value;
-
-            if(title && assignedTo) {
-                gameData.quests.push({ id: generateId(), title, reward, assignedTo, status: 'active' });
-                saveData(`Nouvelle quête : ${title}`);
+    
+    if (gameData.quests.length === 0) {
+        list.innerHTML = '<p style="opacity:0.5; text-align:center">Aucune quête active.</p>';
+    } else {
+        gameData.quests.forEach((q, index) => {
+            // Trouver les infos
+            const assignedP = gameData.players.find(p => p.id === q.assignedTo);
+            const pName = assignedP ? assignedP.name : 'Inconnu';
+            
+            // Trouver l'image du commanditaire
+            let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png'; // Image par défaut (Panneau)
+            if (q.giverId !== 'board') {
+                const npc = gameData.npcs.find(n => n.id === q.giverId);
+                if (npc) giverImg = npc.avatar;
             }
-        };
-    }, 0);
+
+            const card = document.createElement('div');
+            card.className = 'quest-card';
+            card.innerHTML = `
+                <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+                <div class="quest-info">
+                    <div style="float:right">
+                         <button class="btn" style="background:red; font-size:0.7rem; padding:4px 8px;" onclick="deleteQuest(${index})">X</button>
+                    </div>
+                    <h4 class="quest-title">${q.title}</h4>
+                    <p class="quest-desc">${q.desc || 'Aucune description.'}</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                        <span class="quest-reward">🎁 ${q.reward}</span>
+                        <small style="color:var(--cr-blue); font-weight:bold">Pour : ${pName}</small>
+                    </div>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+    
+    container.appendChild(list);
 }
 
+// Fonction de suppression globale
 window.deleteQuest = (index) => {
-    if(confirm('Supprimer cette quête ?')) {
+    if(confirm('Supprimer cette quête ? (Cela l\'effacera aussi chez le joueur)')) {
         gameData.quests.splice(index, 1);
         saveData();
     }
@@ -943,17 +967,45 @@ window.deleteQuest = (index) => {
 
 function renderPlayerQuests(container, player) {
     const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
+    
     container.innerHTML = '<h2>Mes Quêtes</h2>';
+    
     if (myQuests.length === 0) {
-        container.innerHTML += '<p style="opacity:0.6; margin-top:50px;">Aucune quête active.</p>';
+        container.innerHTML += `
+            <div style="text-align:center; opacity:0.6; margin-top:40px;">
+                <img src="https://cdn-icons-png.flaticon.com/512/7486/7486747.png" width="64"><br>
+                <p>Aucune mission pour le moment.<br>Profite de la taverne !</p>
+            </div>`;
         return;
     }
+
     myQuests.forEach(q => {
+        // Trouver l'image du commanditaire
+        let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
+        let giverName = 'Panneau d\'affichage';
+        
+        if (q.giverId && q.giverId !== 'board') {
+            const npc = gameData.npcs.find(n => n.id === q.giverId);
+            if (npc) {
+                giverImg = npc.avatar;
+                giverName = npc.name;
+            }
+        }
+
         const card = document.createElement('div');
-        card.className = 'panel';
-        card.style.marginBottom = '15px';
-        card.style.borderLeft = '5px solid var(--cr-gold)';
-        card.innerHTML = `<h3>${q.title}</h3><p>Récompense : <strong>${q.reward}</strong></p>`;
+        card.className = 'quest-card';
+        // Bordure bleue pour le joueur pour différencier
+        card.style.borderLeftColor = 'var(--cr-blue)'; 
+        
+        card.innerHTML = `
+            <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+            <div class="quest-info">
+                <small style="text-transform:uppercase; font-size:0.6rem; color:#888;">Commanditaire : ${giverName}</small>
+                <h4 class="quest-title">${q.title}</h4>
+                <p class="quest-desc">${q.desc || ''}</p>
+                <span class="quest-reward">💰 ${q.reward}</span>
+            </div>
+        `;
         container.appendChild(card);
     });
 }
