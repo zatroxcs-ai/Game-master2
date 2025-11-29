@@ -1021,20 +1021,117 @@ function renderJournalModule(container) {
     });
 }
 
+// MODULE JOUEUR: PROFIL & STATS (INVENTAIRE VERROUILLÉ)
 function renderPlayerStats(container, p) {
-    container.innerHTML = `<h2>${p.name}</h2><p>${p.inventory || 'Inventaire vide'}</p><h3>Deck</h3>`;
-    const grid = document.createElement('div');
-    grid.className = 'card-grid';
-    p.deck.forEach(cardId => {
-        const c = gameData.cards.find(x => x.id === cardId);
-        if(c) {
-            const el = document.createElement('div');
-            el.className = 'clash-card';
-            el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
-            grid.appendChild(el);
-        }
+    // 1. En-tête "Juicy" (Avatar + Ressources)
+    const header = document.createElement('div');
+    header.className = 'profile-header';
+    header.innerHTML = `
+        <img src="${p.avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/147/147144.png'">
+        <div class="profile-name">${p.name}</div>
+        <div class="resource-row">
+            <div class="res-pill">
+                <div class="res-icon" style="background:#ffbd2e; color:#5c4300">💰</div>
+                <span style="color:#ffbd2e">${p.gold}</span>
+            </div>
+            <div class="res-pill">
+                <div class="res-icon" style="background:#d6308e; color:white">💧</div>
+                <span style="color:#ff8dc7">${p.elixir}</span>
+            </div>
+        </div>
+        <div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">
+            ${p.desc || 'Un héros sans histoire...'}
+        </div>
+    `;
+    container.appendChild(header);
+
+    // 2. Corps du tableau de bord
+    const dashboard = document.createElement('div');
+    dashboard.className = 'player-dashboard';
+    
+    // --- INVENTAIRE (LECTURE SEULE) ---
+    dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
+    
+    const invInput = document.createElement('textarea');
+    invInput.className = 'inventory-box';
+    // On met un message par défaut si vide
+    invInput.value = p.inventory || 'Votre sac est vide.';
+    
+    // --- CHANGEMENTS ICI ---
+    invInput.readOnly = true; // Bloque l'écriture
+    // Style visuel pour montrer que c'est verrouillé
+    invInput.style.backgroundColor = '#e6e6e6'; 
+    invInput.style.color = '#555';
+    invInput.style.cursor = 'default';
+    invInput.style.outline = 'none';
+    // -----------------------
+    
+    dashboard.appendChild(invInput);
+
+    // --- DECK INTERACTIF (Reste inchangé) ---
+    dashboard.innerHTML += `
+        <h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck de Combat</h3>
+        <p class="play-hint">Clique sur une carte pour la jouer dans le chat !</p>
+    `;
+
+    const deckGrid = document.createElement('div');
+    deckGrid.className = 'card-grid player-deck';
+    
+    if(p.deck.length === 0) {
+        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Deck vide. Demande au MJ !</p>';
+    } else {
+        p.deck.forEach(cardId => {
+            const c = gameData.cards.find(x => x.id === cardId);
+            if(c) {
+                const el = document.createElement('div');
+                el.className = 'clash-card';
+                el.innerHTML = `
+                    <div class="cost">${c.cost}</div>
+                    <img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
+                    <h4>${c.name}</h4>
+                `;
+                
+                // Interaction: Jouer la carte
+                el.onclick = () => {
+                    if(confirm(`Utiliser la carte "${c.name}" ?\nCela l'affichera dans le chat.`)) {
+                        playCardAction(p.name, c);
+                    }
+                };
+                
+                deckGrid.appendChild(el);
+            }
+        });
+    }
+    dashboard.appendChild(deckGrid);
+    
+    container.appendChild(dashboard);
+}
+
+// Fonction pour "Jouer" une carte (Envoyer dans le chat)
+function playCardAction(playerName, card) {
+    // On construit un message HTML spécial
+    const cardHtml = `
+        <div style="text-align:center; margin-top:5px; border:2px solid #333; border-radius:8px; overflow:hidden; background:white;">
+            <img src="${card.img}" style="width:100%; height:100px; object-fit:cover; display:block;">
+            <div style="padding:5px; background:#f0f0f0;">
+                <strong style="color:var(--cr-blue-dark)">${card.name}</strong><br>
+                <small>${card.desc}</small>
+            </div>
+        </div>
+    `;
+
+    gameData.chat.push({
+        id: generateId(),
+        sender: playerName,
+        senderId: currentUser.id, // Important pour le styling
+        text: `⚔️ Je lance <b>${card.name}</b> ! ${cardHtml}`,
+        target: 'global',
+        timestamp: new Date().toISOString()
     });
-    container.appendChild(grid);
+    saveData();
+    
+    // Petit feedback visuel : on bascule sur l'onglet chat
+    switchTab(currentUser.role === 'dm' ? 'chat' : 'p-chat', currentUser.role);
 }
 
 function showQRCode() {
