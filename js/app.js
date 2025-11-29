@@ -1029,15 +1029,199 @@ function renderPlayerQuests(container, player) {
     });
 }
 
-// 7. JOURNAL & EXTRAS
+// 7. JOURNAL NARRATIF (RÉSUMÉS DE SESSION)
 function renderJournalModule(container) {
-    container.innerHTML = '<h3>Historique</h3>';
-    gameData.logs.forEach(l => {
-        const div = document.createElement('div');
-        div.innerHTML = `<small>${formatTime(l.timestamp)}</small> : ${l.text}`;
-        div.style.borderBottom = '1px solid #ccc';
-        container.appendChild(div);
+    // Initialisation des données si elles n'existent pas
+    if (!gameData.journal) gameData.journal = [];
+
+    // --- VUE MJ : BOUTON AJOUTER ---
+    if (currentUser.role === 'dm') {
+        container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-entry" class="btn btn-primary" style="width:100%">+ Nouveau Résumé</button></div>';
+        
+        document.getElementById('btn-new-entry').onclick = () => {
+            const today = new Date().toISOString().split('T')[0]; // Date du jour YYYY-MM-DD
+            
+            openJournalModal('Nouveau Résumé', {
+                title: '',
+                date: today,
+                content: '',
+                participants: [] // Vide par défaut
+            }, (data) => {
+                gameData.journal.unshift({
+                    id: generateId(),
+                    title: data.title,
+                    date: data.date,
+                    content: data.content,
+                    participants: data.participants
+                });
+                saveData(`Journal : ${data.title}`);
+            });
+        };
+    } else {
+        container.innerHTML = '<h2 style="margin-bottom:20px;">Chroniques</h2>';
+    }
+
+    // --- LISTE DES ENTRÉES ---
+    const list = document.createElement('div');
+    
+    if (gameData.journal.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.6">Le livre est encore vierge...</p>';
+    }
+
+    gameData.journal.forEach((entry, index) => {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'journal-entry';
+        
+        // Génération des avatars des participants
+        let avatarsHtml = '';
+        if (entry.participants && entry.participants.length > 0) {
+            entry.participants.forEach(pid => {
+                const p = gameData.players.find(x => x.id === pid);
+                if (p) {
+                    avatarsHtml += `<img src="${p.avatar}" class="participant-badge" title="${p.name}" onerror="this.src='https://placehold.co/20'">`;
+                }
+            });
+        }
+
+        entryDiv.innerHTML = `
+            <div class="journal-header">
+                <div style="display:flex; justify-content:space-between;">
+                    <span class="journal-date">📅 ${entry.date}</span>
+                    <div class="journal-participants">${avatarsHtml}</div>
+                </div>
+                <h3 class="journal-title">${entry.title}</h3>
+            </div>
+            <div class="journal-content">${entry.content}</div>
+        `;
+
+        // Boutons d'édition pour le MJ
+        if (currentUser.role === 'dm') {
+            const actions = document.createElement('div');
+            actions.style.marginTop = '15px';
+            actions.style.textAlign = 'right';
+            actions.style.borderTop = '1px solid #eee';
+            actions.style.paddingTop = '10px';
+            
+            actions.innerHTML = `
+                <button class="btn" style="background:orange; font-size:0.7rem; padding:5px 10px;" id="edit-j-${entry.id}">✏️ Éditer</button>
+                <button class="btn" style="background:red; font-size:0.7rem; padding:5px 10px;" id="del-j-${entry.id}">🗑️</button>
+            `;
+            
+            entryDiv.appendChild(actions);
+
+            // Action Supprimer
+            actions.querySelector(`#del-j-${entry.id}`).onclick = () => {
+                if(confirm('Supprimer cette entrée définitivement ?')) {
+                    gameData.journal.splice(index, 1);
+                    saveData();
+                }
+            };
+
+            // Action Éditer
+            actions.querySelector(`#edit-j-${entry.id}`).onclick = () => {
+                openJournalModal('Modifier Résumé', entry, (updatedData) => {
+                    entry.title = updatedData.title;
+                    entry.date = updatedData.date;
+                    entry.content = updatedData.content;
+                    entry.participants = updatedData.participants;
+                    saveData();
+                });
+            };
+        }
+
+        list.appendChild(entryDiv);
     });
+
+    container.appendChild(list);
+}
+
+// --- FONCTION SPÉCIALE POUR LE FORMULAIRE JOURNAL (Avec Checkboxes) ---
+function openJournalModal(title, initialData, onSave) {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    // Réinitialisation
+    document.getElementById('form-title').innerText = title;
+    container.innerHTML = '';
+    saveBtn.style.display = 'inline-block';
+    saveBtn.innerText = 'Sauvegarder';
+
+    // 1. TITRE
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Titre de la session</label>
+            <input type="text" id="j-title" value="${initialData.title}" placeholder="ex: La Caverne des Gobelins">
+        </div>
+    `;
+
+    // 2. DATE
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="j-date" value="${initialData.date}">
+        </div>
+    `;
+
+    // 3. PARTICIPANTS (CHECKBOXES)
+    let checksHtml = '<div class="checkbox-group">';
+    gameData.players.forEach(p => {
+        const isChecked = initialData.participants.includes(p.id) ? 'checked' : '';
+        checksHtml += `
+            <label class="checkbox-item">
+                <input type="checkbox" class="j-part-check" value="${p.id}" ${isChecked}>
+                ${p.name}
+            </label>
+        `;
+    });
+    checksHtml += '</div>';
+
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Participants</label>
+            ${checksHtml}
+        </div>
+    `;
+
+    // 4. CONTENU
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Résumé / Notes</label>
+            <textarea id="j-content" rows="8" placeholder="Racontez votre histoire...">${initialData.content}</textarea>
+        </div>
+    `;
+
+    // Affichage
+    modal.style.display = 'flex';
+
+    // Gestion Fermeture
+    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
+
+    // Gestion Sauvegarde
+    saveBtn.onclick = null;
+    saveBtn.onclick = () => {
+        const titleVal = document.getElementById('j-title').value;
+        const dateVal = document.getElementById('j-date').value;
+        const contentVal = document.getElementById('j-content').value;
+        
+        // Récupérer les cases cochées
+        const selectedParticipants = [];
+        document.querySelectorAll('.j-part-check:checked').forEach(box => {
+            selectedParticipants.push(box.value);
+        });
+
+        if (titleVal && contentVal) {
+            onSave({
+                title: titleVal,
+                date: dateVal,
+                content: contentVal,
+                participants: selectedParticipants
+            });
+            modal.style.display = 'none';
+        } else {
+            alert("Le titre et le contenu sont obligatoires.");
+        }
+    };
 }
 
 // MODULE JOUEUR: PROFIL & STATS (INVENTAIRE VERROUILLÉ)

@@ -470,3 +470,72 @@ p { color: #ddd; }
     margin-top: 15px;
     padding: 0 20px;
 }
+
+/* MODULE JOURNAL NARRATIF */
+.journal-entry {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-left: 5px solid var(--cr-blue);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    position: relative;
+}
+
+.journal-header {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.journal-date {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.journal-title {
+    font-size: 1.2rem;
+    color: var(--cr-blue-dark);
+    margin: 5px 0;
+}
+
+.journal-participants {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.participant-badge {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    object-fit: cover;
+}
+
+.journal-content {
+    font-family: 'Georgia', serif; /* Police avec empattement pour le côté livre */
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap; /* Garde les sauts de ligne */
+}
+
+/* Checkbox group pour le formulaire MJ */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 5px;
+}
+.checkbox-item {
+    background: #eee;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    user-select: none;
+}
+.checkbox-item input { margin-right: 5px; }
