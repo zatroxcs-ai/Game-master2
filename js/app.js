@@ -93,6 +93,10 @@ let currentFormCallback = null;
 function openFormModal(title, fields, onSave) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
+    const.saveBtn = document.getElementById('btn-form-save');
+    saveBtn.style.display = 'inline-block';
+    saveBtn.innerText = 'Sauvegarder';
+    
     document.getElementById('form-title').innerText = title;
     container.innerHTML = ''; // Reset
 
