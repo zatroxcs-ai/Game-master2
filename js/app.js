@@ -1395,18 +1395,77 @@ function playCardAction(playerName, card) {
     switchTab(currentUser.role === 'dm' ? 'chat' : 'p-chat', currentUser.role);
 }
 
+// AFFICHER LE QR CODE (DYNAMIQUE)
 function showQRCode() {
     const modal = document.getElementById('modal-qr');
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = '';
+    const modalContent = modal.querySelector('.modal-content');
+    
+    // On réinitialise le contenu HTML de la modale pour insérer nos contrôles proprement
+    modalContent.innerHTML = `
+        <span class="close-modal" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px;">&times;</span>
+        <h3>Rejoindre la partie</h3>
+        
+        <div style="margin-bottom:15px;">
+            <label style="display:block; font-size:0.8rem; color:#666; margin-bottom:5px;">Sélectionnez le profil à connecter :</label>
+            <select id="qr-target-select" style="padding:10px; width:100%; border-radius:5px; border:1px solid #ccc; font-size:1rem;">
+                <option value="new">✨ Nouveau Joueur (Lien générique)</option>
+            </select>
+        </div>
+
+        <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
+        
+        <p id="qr-hint" style="font-size:0.9rem; color:#444;">Scannez pour rejoindre.</p>
+    `;
+
+    // 1. Remplissage du Select avec les joueurs existants
+    const select = document.getElementById('qr-target-select');
+    gameData.players.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `👤 ${p.name}`;
+        select.appendChild(opt);
+    });
+
+    // 2. Fonction de génération du QR
+    const generateQR = () => {
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ''; // Nettoyer l'ancien QR
+
+        const baseUrl = window.location.href.split('?')[0];
+        const session = document.getElementById('session-input').value;
+        const selectedId = select.value;
+
+        let targetUrl = `${baseUrl}?session=${session}`;
+
+        // Si on choisit un joueur spécifique, on ajoute son ID dans l'URL
+        if (selectedId !== 'new') {
+            targetUrl += `&role=player&id=${selectedId}`;
+            document.getElementById('qr-hint').innerText = `Connexion directe en tant que : ${gameData.players.find(p=>p.id===selectedId).name}`;
+        } else {
+            document.getElementById('qr-hint').innerText = "Lien générique pour un nouveau visiteur.";
+        }
+
+        new QRCode(qrContainer, {
+            text: targetUrl,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    };
+
+    // 3. Événements
+    select.onchange = generateQR; // Régénérer quand on change d'option
+    
+    // Gestion fermeture
+    modal.querySelector('.close-modal').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    // Affichage initial
     modal.style.display = 'flex';
-
-    const baseUrl = window.location.href.split('?')[0];
-    const session = document.getElementById('session-input').value;
-    let targetUrl = `${baseUrl}?session=${session}`;
-    if(gameData.players.length > 0) targetUrl += `&role=player&id=${gameData.players[0].id}`;
-
-    new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
+    generateQR(); // Générer le QR par défaut (Nouveau joueur)
 }
 
 // --- GESTIONNAIRE DE DECK (MJ) ---
