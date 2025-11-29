@@ -3,10 +3,11 @@ import { joinSession, createSession, syncGameData } from './cloud.js';
 
 // --- STATE LOCAL ---
 let gameData = JSON.parse(JSON.stringify(initialGameData));
-let currentUser = { role: 'guest', id: null }; // role: 'dm' ou 'player'
-let currentTab = 'map'; // Onglet actif
-let prevDeckSize = 0; // Pour détecter les nouvelles cartes
+let currentUser = { role: 'guest', id: null };
+let currentTab = 'map';
+let prevDeckSize = 0;
 let selectedEntityId = null;
+let currentFormCallback = null;
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -19,7 +20,6 @@ const screens = {
 window.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-    // Vérifier les paramètres URL
     const params = new URLSearchParams(window.location.search);
     const sessionParam = params.get('session');
     const roleParam = params.get('role');
@@ -27,8 +27,6 @@ async function init() {
 
     if (sessionParam) {
         document.getElementById('session-input').value = sessionParam;
-        
-        // Auto-login si les params sont là
         if (roleParam === 'player' && playerIdParam) {
             currentUser = { role: 'player', id: playerIdParam };
             await connectToSession(sessionParam);
@@ -37,7 +35,6 @@ async function init() {
             await connectToSession(sessionParam);
         }
     }
-
     setupEventListeners();
 }
 
@@ -64,18 +61,12 @@ function setupEventListeners() {
         await connectToSession(sid);
     });
 
-    // Navigation MJ
+    // Navigation
     document.querySelectorAll('#dm-nav button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            switchTab(e.target.dataset.tab, 'dm');
-        });
+        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'dm'));
     });
-
-    // Navigation Joueur
     document.querySelectorAll('#player-nav button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            switchTab(e.target.dataset.tab, 'player');
-        });
+        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'player'));
     });
 
     // Modale QR
@@ -87,18 +78,72 @@ function setupEventListeners() {
 
 // --- LOGIC ---
 
-// --- SYSTEME DE MODALE DYNAMIQUE ---
-let currentFormCallback = null;
+async function connectToSession(sid) {
+    const exists = await joinSession(sid, (newData) => {
+        updateLocalData(newData);
+    });
 
+    if (exists) {
+        enterGame(sid);
+    } else {
+        alert("Session introuvable");
+    }
+}
+
+function enterGame(sid) {
+    screens.login.classList.remove('active');
+    
+    if (currentUser.role === 'dm') {
+        screens.dm.classList.add('active');
+        document.getElementById('session-display').innerText = `(${sid})`;
+    } else {
+        screens.player.classList.add('active');
+        const me = gameData.players.find(p => p.id === currentUser.id);
+        if(me) prevDeckSize = me.deck.length;
+    }
+    render();
+}
+
+function updateLocalData(newData) {
+    if (currentUser.role === 'player') {
+        const meNew = newData.players.find(p => p.id === currentUser.id);
+        if (meNew && meNew.deck.length > prevDeckSize) {
+            triggerChestAnimation(meNew.deck[meNew.deck.length - 1]);
+        }
+        if (meNew) prevDeckSize = meNew.deck.length;
+    }
+    gameData = newData;
+    render();
+}
+
+function saveData(actionLog = null) {
+    if (actionLog) {
+        gameData.logs.unshift({ text: actionLog, timestamp: new Date().toISOString() });
+    }
+    syncGameData(gameData);
+    render();
+}
+
+function switchTab(tabName, role) {
+    currentTab = tabName;
+    const navId = role === 'dm' ? '#dm-nav' : '#player-nav';
+    document.querySelectorAll(`${navId} button`).forEach(b => b.classList.remove('active'));
+    document.querySelector(`${navId} button[data-tab="${tabName}"]`).classList.add('active');
+    render();
+}
+
+// --- SYSTEME DE MODALE DYNAMIQUE (FIXED) ---
 function openFormModal(title, fields, onSave) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
-    const.saveBtn = document.getElementById('btn-form-save');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    // FIX: Toujours réafficher le bouton par défaut
     saveBtn.style.display = 'inline-block';
     saveBtn.innerText = 'Sauvegarder';
     
     document.getElementById('form-title').innerText = title;
-    container.innerHTML = ''; // Reset
+    container.innerHTML = '';
 
     fields.forEach(f => {
         const div = document.createElement('div');
@@ -121,12 +166,10 @@ function openFormModal(title, fields, onSave) {
         } else if (f.type === 'textarea') {
             input = document.createElement('textarea');
             input.rows = 3;
-            // Accepte le 0, mais met vide si null/undefined
             input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
         } else {
             input = document.createElement('input');
             input.type = f.type || 'text';
-            // Accepte le 0, mais met vide si null/undefined
             input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
         }
         
@@ -138,9 +181,11 @@ function openFormModal(title, fields, onSave) {
     currentFormCallback = onSave;
     modal.style.display = 'flex';
 
-    // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
-    document.getElementById('btn-form-save').onclick = () => {
+    
+    // Nettoyage et assignation event
+    saveBtn.onclick = null;
+    saveBtn.onclick = () => {
         const result = {};
         fields.forEach(f => {
             const el = document.getElementById(`field-${f.name}`);
@@ -149,65 +194,6 @@ function openFormModal(title, fields, onSave) {
         currentFormCallback(result);
         modal.style.display = 'none';
     };
-}
-
-async function connectToSession(sid) {
-    const exists = await joinSession(sid, (newData) => {
-        // Callback appelé quand les données changent depuis Supabase
-        updateLocalData(newData);
-    });
-
-    if (exists) {
-        enterGame(sid);
-    } else {
-        alert("Session introuvable");
-    }
-}
-
-function enterGame(sid) {
-    screens.login.classList.remove('active');
-    
-    if (currentUser.role === 'dm') {
-        screens.dm.classList.add('active');
-        document.getElementById('session-display').innerText = `(${sid})`;
-    } else {
-        screens.player.classList.add('active');
-        // Initialiser la taille du deck pour l'anim
-        const me = gameData.players.find(p => p.id === currentUser.id);
-        if(me) prevDeckSize = me.deck.length;
-    }
-    
-    render();
-}
-
-function updateLocalData(newData) {
-    // Détection changement Deck pour animation (Joueur uniquement)
-    if (currentUser.role === 'player') {
-        const meNew = newData.players.find(p => p.id === currentUser.id);
-        if (meNew && meNew.deck.length > prevDeckSize) {
-            triggerChestAnimation(meNew.deck[meNew.deck.length - 1]);
-        }
-        if (meNew) prevDeckSize = meNew.deck.length;
-    }
-
-    gameData = newData;
-    render();
-}
-
-function saveData(actionLog = null) {
-    if (actionLog) {
-        gameData.logs.unshift({ text: actionLog, timestamp: new Date().toISOString() });
-    }
-    syncGameData(gameData);
-    render(); // Optimistic render
-}
-
-function switchTab(tabName, role) {
-    currentTab = tabName;
-    const navId = role === 'dm' ? '#dm-nav' : '#player-nav';
-    document.querySelectorAll(`${navId} button`).forEach(b => b.classList.remove('active'));
-    document.querySelector(`${navId} button[data-tab="${tabName}"]`).classList.add('active');
-    render();
 }
 
 // --- RENDERING ENGINE ---
@@ -235,7 +221,7 @@ function renderPlayer() {
     container.innerHTML = '';
     
     const me = gameData.players.find(p => p.id === currentUser.id);
-    if (!me) return container.innerHTML = '<p>Votre personnage a été supprimé ou n\'existe pas.</p>';
+    if (!me) return container.innerHTML = '<p>Votre personnage a été supprimé.</p>';
 
     document.getElementById('player-name-display').innerText = me.name;
     document.getElementById('player-resources').innerHTML = `
@@ -244,51 +230,34 @@ function renderPlayer() {
     `;
 
     if (currentTab === 'p-stats') renderPlayerStats(container, me);
-    else if (currentTab === 'p-map') renderMapModule(container, false); // False = non éditable
+    else if (currentTab === 'p-map') renderMapModule(container, false);
     else if (currentTab === 'p-chat') renderChatModule(container);
     else if (currentTab === 'p-quests') renderPlayerQuests(container, me);
     else if (currentTab === 'p-journal') renderJournalModule(container);
 }
 
-// Variable globale pour la sélection (déjà existante normalement)
-// let selectedEntityId = null; 
+// --- MODULES ---
 
+// 1. MAP & ATLAS
 function renderMapModule(container, isEditable) {
-    // 1. MIGRATION DES DONNÉES (Pour compatibilité)
-    // Si la liste des cartes n'existe pas encore, on la crée à partir de la config actuelle
+    // Migration data
     if (!gameData.maps) {
-        gameData.maps = [
-            { 
-                id: 'default', 
-                name: 'Carte Principale', 
-                url: gameData.config.mapUrl || './assets/map.png', // Fallback sûr
-                desc: 'La carte par défaut.'
-            }
-        ];
+        gameData.maps = [{ id: 'default', name: 'Carte Principale', url: gameData.config.mapUrl || './assets/map.png', desc: 'Défaut' }];
         gameData.activeMapId = 'default';
-        // On sauvegarde silencieusement cette migration
-        import('./cloud.js').then(module => module.syncGameData(gameData));
+        syncGameData(gameData);
     }
 
-    // 2. RECUPERER LA CARTE ACTIVE
-    // On cherche la carte active, sinon on prend la première
     let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
-    
-    // Fallback ultime si tout est cassé
     if(!currentMap) currentMap = { url: './assets/map.png', name: 'Défaut' };
 
-    // 3. RENDU DU CONTAINER
     const wrapper = document.createElement('div');
     wrapper.className = 'map-container';
     
-    // L'image de la carte active
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
-    // Petit fix pour éviter l'icône d'image cassée
     img.onerror = function() { this.src = 'https://via.placeholder.com/800x600?text=Image+Introuvable'; };
     
-    // LOGIQUE DE DÉPLACEMENT (MJ UNIQUEMENT)
     if(isEditable) {
         img.addEventListener('click', (e) => {
             if (selectedEntityId) {
@@ -299,17 +268,15 @@ function renderMapModule(container, isEditable) {
                     const rect = wrapper.getBoundingClientRect();
                     const x = ((e.clientX - rect.left) / rect.width) * 100;
                     const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    entity.x = x;
-                    entity.y = y;
+                    entity.x = x; entity.y = y;
                     saveData(); 
                     render(); 
                 }
             } else {
-                alert("Cliquez d'abord sur un pion pour le sélectionner !");
+                alert("Sélectionnez un pion d'abord !");
             }
         });
 
-        // --- BOUTON GESTION DES MAPS (NOUVEAU) ---
         const btnManage = document.createElement('button');
         btnManage.className = 'btn btn-secondary';
         btnManage.innerHTML = '🗺️ Atlas';
@@ -317,14 +284,12 @@ function renderMapModule(container, isEditable) {
         btnManage.style.top = '10px';
         btnManage.style.left = '10px';
         btnManage.style.zIndex = '50';
-        
         btnManage.onclick = () => openMapManager();
         wrapper.appendChild(btnManage);
     }
 
     wrapper.appendChild(img);
 
-    // 4. RENDU DES PIONS
     [...gameData.players, ...gameData.npcs].forEach(entity => {
         const p = document.createElement('div');
         p.className = 'pawn';
@@ -332,7 +297,6 @@ function renderMapModule(container, isEditable) {
         p.style.top = entity.y + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
         
-        // Bordure spéciale si sélectionné
         if (selectedEntityId === entity.id) {
             p.style.borderColor = 'var(--cr-gold)';
             p.style.boxShadow = '0 0 15px var(--cr-gold)';
@@ -351,54 +315,35 @@ function renderMapModule(container, isEditable) {
         label.className = 'pawn-label';
         label.innerText = entity.name;
         p.appendChild(label);
-        
         wrapper.appendChild(p);
     });
 
     container.appendChild(wrapper);
 }
 
-// --- LOGIQUE DU GESTIONNAIRE DE CARTES (CORRIGÉE) ---
-
 function openMapManager() {
-    // On utilise une modale personnalisée pour lister les cartes
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
-    const saveBtn = document.getElementById('btn-form-save'); // On récupère le bouton
+    const saveBtn = document.getElementById('btn-form-save');
     
     document.getElementById('form-title').innerText = 'Atlas des Cartes';
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
 
-    // 1. Action du Bouton "Créer"
     container.querySelector('#btn-new-map').onclick = () => {
-        modal.style.display = 'none'; // Ferme la liste
-        
-        // IMPORTANT : On réaffiche le bouton de sauvegarde pour le formulaire !
-        saveBtn.style.display = 'inline-block'; 
-        saveBtn.innerText = 'Créer la carte'; // On peut même changer le texte
-
+        modal.style.display = 'none'; 
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom du lieu', value: '' },
-            { name: 'url', label: 'URL Image (ou ./assets/...)', value: './assets/map.png' },
+            { name: 'url', label: 'URL Image', value: './assets/map.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            gameData.maps.push({
-                id: generateId(),
-                name: data.name,
-                url: data.url,
-                desc: data.desc
-            });
+            gameData.maps.push({ id: generateId(), name: data.name, url: data.url, desc: data.desc });
             saveData(`Carte créée : ${data.name}`);
-            
-            // Une fois fini, on réouvre le manager (qui cachera le bouton à nouveau)
             setTimeout(() => openMapManager(), 100); 
         });
     };
 
-    // 2. Liste des cartes
     const list = document.createElement('div');
-    list.style.maxHeight = '300px';
-    list.style.overflowY = 'auto';
+    list.style.maxHeight = '300px'; list.style.overflowY = 'auto';
 
     gameData.maps.forEach(m => {
         const isActive = m.id === gameData.activeMapId;
@@ -412,10 +357,10 @@ function openMapManager() {
         row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center">
                 <div>
-                    <strong>${m.name}</strong> ${isActive ? '✅ (Active)' : ''}<br>
+                    <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
                     <small style="opacity:0.7">${m.desc || ''}</small>
                 </div>
-                <img src="${m.url}" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">
+                <img src="${m.url}" onerror="this.src='https://via.placeholder.com/50'" style="width:50px; height:30px; object-fit:cover; border:1px solid #ccc; margin:0 10px;">
             </div>
             <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
                 ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
@@ -424,7 +369,6 @@ function openMapManager() {
             </div>
         `;
 
-        // Action: CHARGER
         if(!isActive) {
             row.querySelector(`#load-${m.id}`).onclick = () => {
                 gameData.activeMapId = m.id;
@@ -434,94 +378,66 @@ function openMapManager() {
             };
         }
 
-        // Action: MODIFIER
         row.querySelector(`#edit-${m.id}`).onclick = () => {
             modal.style.display = 'none';
-            
-            // IMPORTANT : On réaffiche le bouton de sauvegarde
-            saveBtn.style.display = 'inline-block';
-            saveBtn.innerText = 'Sauvegarder';
-
             openFormModal(`Modifier ${m.name}`, [
                 { name: 'name', label: 'Nom', value: m.name },
                 { name: 'url', label: 'URL', value: m.url },
                 { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
             ], (data) => {
-                m.name = data.name;
-                m.url = data.url;
-                m.desc = data.desc;
+                m.name = data.name; m.url = data.url; m.desc = data.desc;
                 saveData();
                 setTimeout(() => openMapManager(), 100);
             });
         };
 
-        // Action: SUPPRIMER
         row.querySelector(`#del-${m.id}`).onclick = () => {
             if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
-            if(confirm('Supprimer cette carte ?')) {
+            if(confirm('Supprimer ?')) {
                 gameData.maps = gameData.maps.filter(x => x.id !== m.id);
                 if(isActive) {
                     gameData.activeMapId = gameData.maps[0].id;
                     gameData.config.mapUrl = gameData.maps[0].url;
                 }
                 saveData();
-                openMapManager(); // Refresh liste
+                openMapManager(); 
             }
         };
-
         list.appendChild(row);
     });
 
     container.appendChild(list);
-    
-    // --- ICI ON CACHE LE BOUTON POUR LA VUE LISTE ---
     saveBtn.style.display = 'none';
-    
-    // Affichage
     modal.style.display = 'flex';
-    
-    // Gestion fermeture propre
-    const closeBtn = modal.querySelector('.close-form');
-    // On remet le bouton visible par défaut quand on ferme totalement la modale
-    // pour ne pas casser les autres formulaires (Joueurs, Cartes)
-    closeBtn.onclick = () => {
+    modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block'; 
-        saveBtn.innerText = 'Sauvegarder'; // Reset texte
         modal.style.display = 'none';
     };
 }
 
-// 2. PLAYERS & PNJ (CRUD MJ COMPLET + FIX RESSOURCES)
+// 2. PLAYERS & PNJ
 function renderPlayersModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-add-p" class="btn btn-primary">+ Nouveau Personnage</button></div>';
     
-    // Bouton Création
     document.getElementById('btn-add-p').onclick = () => {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
             { name: 'type', label: 'Type', type: 'select', options: [{value:'player', label:'Joueur'}, {value:'npc', label:'PNJ'}], value: 'player' },
-            { name: 'avatar', label: 'URL Avatar (Image)', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
-            { name: 'desc', label: 'Description / Histoire', type: 'textarea', value: '' }
+            { name: 'avatar', label: 'URL Avatar', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
+            { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
             const newChar = {
-                id: generateId(),
-                name: data.name,
-                avatar: data.avatar,
-                desc: data.desc,
-                gold: 0, elixir: 0, deck: [], inventory: '',
-                x: 50, y: 50
+                id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc,
+                gold: 0, elixir: 0, deck: [], inventory: '', x: 50, y: 50
             };
-            
             if(data.type === 'player') gameData.players.push(newChar);
             else gameData.npcs.push(newChar);
-            
             saveData(`Création de ${data.name}`);
         });
     };
 
     const list = document.createElement('div');
     
-    // Fonction helper pour afficher une ligne (Fusionnée)
     const renderRow = (char, type) => {
         const row = document.createElement('div');
         row.className = 'panel';
@@ -531,8 +447,6 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
-        // HTML combinant : Avatar + Inputs Ressources (si Joueur) + Boutons Edit/Del
-        // On n'affiche les ressources que pour les Joueurs (type === 'player')
         const resourcesHtml = type === 'player' ? `
             <div style="margin-top:5px;">
                 <span style="font-size:0.8rem">💰</span> 
@@ -543,8 +457,7 @@ function renderPlayersModule(container) {
         ` : '';
 
         row.innerHTML = `
-            // Ajout de onerror : si l'image plante, on met une icône générique par défaut
-<img src="${char.avatar}" onerror="./map.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
+            <img src="${char.avatar}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
             <div style="flex:1">
                 <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small>
                 ${resourcesHtml}
@@ -556,42 +469,32 @@ function renderPlayersModule(container) {
             </div>
         `;
 
-        // --- PARTIE CORRECTION BUG FOCUS ---
-        // On attache les événements manuellement pour éviter le re-render global
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
-                const val = parseInt(e.target.value) || 0; // Gère le vide comme 0
+                const val = parseInt(e.target.value) || 0;
                 const fieldType = e.target.dataset.type;
                 const pid = e.target.dataset.id;
-                
-                // Mise à jour silencieuse de l'objet local
                 const targetP = gameData.players.find(x => x.id === pid);
                 if(targetP) {
                     targetP[fieldType] = val;
-                    // On envoie à Supabase sans recharger l'interface (pour garder le focus)
-                    import('./cloud.js').then(module => module.syncGameData(gameData));
+                    syncGameData(gameData);
                 }
             };
         });
-        // -----------------------------------
 
-        // Logique Edition (Bouton Crayon)
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
                 { name: 'avatar', label: 'URL Avatar', value: char.avatar },
                 { name: 'desc', label: 'Description', type: 'textarea', value: char.desc || '' },
-                { name: 'inventory', label: 'Inventaire (Texte)', type: 'textarea', value: char.inventory || '' }
+                { name: 'inventory', label: 'Inventaire', type: 'textarea', value: char.inventory || '' }
             ], (data) => {
-                char.name = data.name;
-                char.avatar = data.avatar;
-                char.desc = data.desc;
-                char.inventory = data.inventory;
+                char.name = data.name; char.avatar = data.avatar;
+                char.desc = data.desc; char.inventory = data.inventory;
                 saveData(`Modification de ${char.name}`);
             });
         };
 
-        // Logique Suppression (Bouton Poubelle)
         row.querySelector(`#del-${char.id}`).onclick = () => {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
@@ -599,41 +502,71 @@ function renderPlayersModule(container) {
                 saveData(`Suppression de ${char.name}`);
             }
         };
-
         list.appendChild(row);
     };
 
-    // Rendre les listes
     gameData.players.forEach(p => renderRow(p, 'player'));
     if(gameData.npcs.length > 0) {
-        const sep = document.createElement('h3'); 
-        sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
+        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
         list.appendChild(sep);
         gameData.npcs.forEach(n => renderRow(n, 'npc'));
     }
-    
     container.appendChild(list);
 }
 
-// 4. CARTES (MJ: Database & Création)
+// 3. CHAT
+function renderChatModule(container) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-window';
+    
+    const messages = document.createElement('div');
+    messages.className = 'chat-messages';
+    
+    gameData.chat.forEach(msg => {
+        const div = document.createElement('div');
+        const isSelf = msg.sender === currentUser.id || (currentUser.role === 'dm' && msg.sender === 'MJ');
+        div.className = `message ${isSelf ? 'self' : ''}`;
+        div.innerHTML = `
+            <small>${msg.sender} - ${formatTime(msg.timestamp)}</small>
+            <div class="bubble">${msg.text}</div>
+        `;
+        messages.appendChild(div);
+    });
+    
+    const inputArea = document.createElement('div');
+    inputArea.className = 'chat-input-area';
+    inputArea.innerHTML = `
+        <input type="text" id="chat-input" style="flex:1; padding:10px;" placeholder="Message...">
+        <button class="btn btn-primary" id="chat-send">Envoyer</button>
+    `;
+
+    wrapper.appendChild(messages);
+    wrapper.appendChild(inputArea);
+    container.appendChild(wrapper);
+    messages.scrollTop = messages.scrollHeight;
+
+    wrapper.querySelector('#chat-send').onclick = () => {
+        const txt = wrapper.querySelector('#chat-input').value;
+        if(txt) {
+            const senderName = currentUser.role === 'dm' ? 'MJ' : gameData.players.find(p => p.id === currentUser.id)?.name || 'Inconnu';
+            gameData.chat.push({ id: generateId(), sender: senderName, text: txt, timestamp: new Date().toISOString() });
+            saveData();
+        }
+    };
+}
+
+// 4. CARTES (ITEMS)
 function renderCardsModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
 
-    // Création
     document.getElementById('btn-create-card').onclick = () => {
-        openFormModal('Nouvelle Carte / Objet', [
+        openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom', value: '' },
-            { name: 'cost', label: 'Coût (Élixir)', type: 'number', value: '3' },
+            { name: 'cost', label: 'Coût', type: 'number', value: '3' },
             { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' },
-            { name: 'desc', label: 'Effet / Description', type: 'textarea', value: '' }
+            { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
         ], (data) => {
-            gameData.cards.push({
-                id: generateId(),
-                name: data.name,
-                cost: parseInt(data.cost),
-                img: data.img,
-                desc: data.desc
-            });
+            gameData.cards.push({ id: generateId(), name: data.name, cost: parseInt(data.cost), img: data.img, desc: data.desc });
             saveData(`Carte créée : ${data.name}`);
         });
     };
@@ -644,14 +577,9 @@ function renderCardsModule(container) {
     gameData.cards.forEach(c => {
         const el = document.createElement('div');
         el.className = 'clash-card';
-        el.style.cursor = 'pointer'; // Indique qu'on peut cliquer
-        el.innerHTML = `
-            <div class="cost">${c.cost}</div>
-            <img src="${c.img}">
-            <h4>${c.name}</h4>
-        `;
+        el.style.cursor = 'pointer';
+        el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
         
-        // Clic sur une carte = Édition
         el.onclick = () => {
             openFormModal(`Modifier ${c.name}`, [
                 { name: 'name', label: 'Nom', value: c.name },
@@ -659,180 +587,67 @@ function renderCardsModule(container) {
                 { name: 'img', label: 'Image URL', value: c.img },
                 { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
             ], (data) => {
-                c.name = data.name;
-                c.cost = parseInt(data.cost);
-                c.img = data.img;
-                c.desc = data.desc;
+                c.name = data.name; c.cost = parseInt(data.cost); c.img = data.img; c.desc = data.desc;
                 saveData(`Carte modifiée : ${c.name}`);
             });
         };
-
         grid.appendChild(el);
     });
     container.appendChild(grid);
 }
 
-// 5. JOURNAL
-function renderJournalModule(container) {
-    container.innerHTML = '<h3>Historique</h3>';
-    gameData.logs.forEach(l => {
-        const div = document.createElement('div');
-        div.innerHTML = `<small>${formatTime(l.timestamp)}</small> : ${l.text}`;
-        div.style.borderBottom = '1px solid #ccc';
-        container.appendChild(div);
-    });
-}
-
-// 6. JOUEUR STATS
-function renderPlayerStats(container, p) {
-    container.innerHTML = `<h2>${p.name}</h2><p>${p.inventory || 'Inventaire vide'}</p><h3>Deck</h3>`;
-    const grid = document.createElement('div');
-    grid.className = 'card-grid';
-    
-    p.deck.forEach(cardId => {
-        const c = gameData.cards.find(x => x.id === cardId);
-        if(c) {
-            const el = document.createElement('div');
-            el.className = 'clash-card';
-            el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
-            grid.appendChild(el);
-        }
-    });
-    container.appendChild(grid);
-}
-
-// 7. QR CODE
-function showQRCode() {
-    const modal = document.getElementById('modal-qr');
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = ''; // Clear
-    modal.style.display = 'flex';
-
-    // Générer URL pour un nouveau joueur
-    // Astuce: Pour simplifier, on génère un lien générique. 
-    // Idéalement, le MJ crée le joueur avant et génère un lien spécifique avec ?id=XYZ
-    const baseUrl = window.location.href.split('?')[0];
-    const session = document.getElementById('session-input').value;
-    
-    // Pour la démo, on crée un lien "Rejoindre session"
-    // Le joueur devra être créé par le MJ, puis le joueur cliquera sur son nom (feature à implémenter)
-    // Ici, simulons un lien pour le premier joueur de la liste s'il existe
-    let targetUrl = `${baseUrl}?session=${session}`;
-    if(gameData.players.length > 0) {
-        targetUrl += `&role=player&id=${gameData.players[0].id}`;
-    }
-
-    new QRCode(qrContainer, {
-        text: targetUrl,
-        width: 200,
-        height: 200
-    });
-}
-
-// 8. ANIMATION COFFRE
-function triggerChestAnimation(newCardId) {
-    const overlay = document.getElementById('chest-overlay');
-    const display = document.getElementById('new-card-display');
-    const card = gameData.cards.find(c => c.id === newCardId);
-    
-    if(!card) return;
-
-    display.innerHTML = `
-        <div class="clash-card" style="transform: scale(1.5)">
-            <div class="cost">${card.cost}</div>
-            <img src="${card.img}">
-            <h4>${card.name}</h4>
-        </div>
-    `;
-    
-    overlay.classList.remove('hidden');
-    
-    // Cacher après 4 secondes
-    setTimeout(() => {
-        overlay.classList.add('hidden');
-    }, 4000);
-}
-
-// Placeholders pour les fonctions non implémentées complètement (Relations, Quests)
-// MODULE: RELATIONS (Matrice)
+// 5. RELATIONS
 function renderRelationsModule(container) {
     container.innerHTML = '<h2>Matrice des Relations</h2><p class="hint">Cliquez sur une case pour changer la relation.</p>';
     
-    // On combine Joueurs et PNJ pour la matrice
     const entities = [...gameData.players, ...gameData.npcs];
-    if(entities.length === 0) return container.innerHTML += '<p>Aucune entité (Joueur ou PNJ) créée.</p>';
+    if(entities.length === 0) return container.innerHTML += '<p>Aucune entité créée.</p>';
 
-    // Création de la grille CSS dynamique
     const matrix = document.createElement('div');
     matrix.className = 'relation-matrix';
-    // +1 pour l'entête des lignes
     matrix.style.gridTemplateColumns = `repeat(${entities.length + 1}, 1fr)`;
 
-    // 1. Case vide (coin haut gauche)
     const corner = document.createElement('div');
     corner.className = 'rel-cell rel-header';
     corner.innerText = 'X';
     matrix.appendChild(corner);
 
-    // 2. En-têtes (Colonnes)
     entities.forEach(e => {
         const header = document.createElement('div');
         header.className = 'rel-cell rel-header';
-        header.innerText = e.name.substring(0, 3).toUpperCase(); // 3 premières lettres
+        header.innerText = e.name.substring(0, 3).toUpperCase();
         header.title = e.name;
         matrix.appendChild(header);
     });
 
-    // 3. Lignes
     entities.forEach(source => {
-        // En-tête Ligne
         const rowHead = document.createElement('div');
         rowHead.className = 'rel-cell rel-header';
         rowHead.innerText = source.name;
         matrix.appendChild(rowHead);
 
-        // Cellules
         entities.forEach(target => {
             const cell = document.createElement('div');
             cell.className = 'rel-cell';
             
-            // Auto-relation (diagonale grise)
             if (source.id === target.id) {
                 cell.style.background = '#ccc';
             } else {
-                // Chercher la relation existante
                 const rel = gameData.relations.find(r => r.source === source.id && r.target === target.id);
                 const status = rel ? rel.status : 'neutral';
                 
-                // Styling
-                cell.className = `rel-cell rel-${status}`; // ex: rel-friendly
+                cell.className = `rel-cell rel-${status}`;
                 cell.innerText = getRelIcon(status);
                 cell.style.cursor = 'pointer';
-
-                // Click event : Cycle des états
-                cell.onclick = () => {
-                    cycleRelation(source.id, target.id, status);
-                };
+                cell.onclick = () => cycleRelation(source.id, target.id, status);
             }
             matrix.appendChild(cell);
         });
     });
 
     container.appendChild(matrix);
-    
-    // Légende
-    const legend = document.createElement('div');
-    legend.style.marginTop = '10px';
-    legend.innerHTML = `
-        <span class="rel-cell rel-neutral">😐 Neutre</span>
-        <span class="rel-cell rel-friendly">🙂 Ami</span>
-        <span class="rel-cell rel-hostile">😡 Hostile</span>
-        <span class="rel-cell" style="background:#cce5ff">🛡️ Allié</span>
-    `;
-    container.appendChild(legend);
 }
 
-// Helper pour les icônes
 function getRelIcon(status) {
     if(status === 'friendly') return '🙂';
     if(status === 'hostile') return '😡';
@@ -840,30 +655,24 @@ function getRelIcon(status) {
     return '😐';
 }
 
-// Logique de changement d'état
 function cycleRelation(sId, tId, currentStatus) {
     const states = ['neutral', 'friendly', 'hostile', 'ally'];
     const nextIndex = (states.indexOf(currentStatus) + 1) % states.length;
     const nextStatus = states[nextIndex];
 
-    // Mise à jour ou Création dans gameData
     const existingIndex = gameData.relations.findIndex(r => r.source === sId && r.target === tId);
-    if (existingIndex >= 0) {
-        gameData.relations[existingIndex].status = nextStatus;
-    } else {
-        gameData.relations.push({ source: sId, target: tId, status: nextStatus });
-    }
+    if (existingIndex >= 0) gameData.relations[existingIndex].status = nextStatus;
+    else gameData.relations.push({ source: sId, target: tId, status: nextStatus });
     
-    saveData(); // Sauvegarde et refresh
+    saveData();
 }
-// MODULE: QUÊTES (Vue MJ)
+
+// 6. QUÊTES
 function renderQuestsModule(container) {
-    // Formulaire de création
     const formPanel = document.createElement('div');
     formPanel.className = 'panel';
     formPanel.innerHTML = `<h3>Nouvelle Quête</h3>`;
     
-    // Sélecteur de joueurs
     let playerOptions = gameData.players.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     
     formPanel.innerHTML += `
@@ -871,12 +680,11 @@ function renderQuestsModule(container) {
             <input type="text" id="q-title" placeholder="Titre de la quête">
             <input type="text" id="q-reward" placeholder="Récompense (ex: 500 Or)">
             <select id="q-assign">${playerOptions}</select>
-            <button id="btn-add-quest" class="btn btn-secondary">Publier la Quête</button>
+            <button id="btn-add-quest" class="btn btn-secondary">Publier</button>
         </div>
     `;
     container.appendChild(formPanel);
 
-    // Liste des quêtes actives
     const list = document.createElement('div');
     list.style.marginTop = '20px';
     list.innerHTML = '<h3>Quêtes en cours</h3>';
@@ -887,7 +695,6 @@ function renderQuestsModule(container) {
         item.style.marginBottom = '10px';
         item.style.textAlign = 'left';
         
-        // Trouver le nom du joueur assigné
         const assignedPlayer = gameData.players.find(p => p.id === q.assignedTo);
         const pName = assignedPlayer ? assignedPlayer.name : 'Inconnu';
 
@@ -903,28 +710,23 @@ function renderQuestsModule(container) {
         `;
         list.appendChild(item);
     });
-
     container.appendChild(list);
 
-    // Event Listener pour le bouton ajouter
-    // (Note: on utilise setTimeout pour s'assurer que l'élément est dans le DOM)
     setTimeout(() => {
-        document.getElementById('btn-add-quest').onclick = () => {
+        const btn = document.getElementById('btn-add-quest');
+        if(btn) btn.onclick = () => {
             const title = document.getElementById('q-title').value;
             const reward = document.getElementById('q-reward').value;
             const assignedTo = document.getElementById('q-assign').value;
 
             if(title && assignedTo) {
-                gameData.quests.push({
-                    id: generateId(), title, reward, assignedTo, status: 'active'
-                });
+                gameData.quests.push({ id: generateId(), title, reward, assignedTo, status: 'active' });
                 saveData(`Nouvelle quête : ${title}`);
             }
         };
     }, 0);
 }
 
-// Helper global pour supprimer (attaché à window pour le onclick HTML)
 window.deleteQuest = (index) => {
     if(confirm('Supprimer cette quête ?')) {
         gameData.quests.splice(index, 1);
@@ -932,27 +734,77 @@ window.deleteQuest = (index) => {
     }
 };
 
-// MODULE: QUÊTES (Vue Joueur)
 function renderPlayerQuests(container, player) {
     const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
-    
     container.innerHTML = '<h2>Mes Quêtes</h2>';
-    
     if (myQuests.length === 0) {
-        container.innerHTML += '<p style="opacity:0.6; margin-top:50px;">Aucune quête active. Reposez-vous, aventurier.</p>';
+        container.innerHTML += '<p style="opacity:0.6; margin-top:50px;">Aucune quête active.</p>';
         return;
     }
-
     myQuests.forEach(q => {
         const card = document.createElement('div');
         card.className = 'panel';
         card.style.marginBottom = '15px';
         card.style.borderLeft = '5px solid var(--cr-gold)';
-        card.innerHTML = `
-            <h3>${q.title}</h3>
-            <p>Récompense : <strong>${q.reward}</strong></p>
-            <p style="font-size:0.8rem; color:green">En cours...</p>
-        `;
+        card.innerHTML = `<h3>${q.title}</h3><p>Récompense : <strong>${q.reward}</strong></p>`;
         container.appendChild(card);
     });
+}
+
+// 7. JOURNAL & EXTRAS
+function renderJournalModule(container) {
+    container.innerHTML = '<h3>Historique</h3>';
+    gameData.logs.forEach(l => {
+        const div = document.createElement('div');
+        div.innerHTML = `<small>${formatTime(l.timestamp)}</small> : ${l.text}`;
+        div.style.borderBottom = '1px solid #ccc';
+        container.appendChild(div);
+    });
+}
+
+function renderPlayerStats(container, p) {
+    container.innerHTML = `<h2>${p.name}</h2><p>${p.inventory || 'Inventaire vide'}</p><h3>Deck</h3>`;
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    p.deck.forEach(cardId => {
+        const c = gameData.cards.find(x => x.id === cardId);
+        if(c) {
+            const el = document.createElement('div');
+            el.className = 'clash-card';
+            el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
+            grid.appendChild(el);
+        }
+    });
+    container.appendChild(grid);
+}
+
+function showQRCode() {
+    const modal = document.getElementById('modal-qr');
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    modal.style.display = 'flex';
+
+    const baseUrl = window.location.href.split('?')[0];
+    const session = document.getElementById('session-input').value;
+    let targetUrl = `${baseUrl}?session=${session}`;
+    if(gameData.players.length > 0) targetUrl += `&role=player&id=${gameData.players[0].id}`;
+
+    new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
+}
+
+function triggerChestAnimation(newCardId) {
+    const overlay = document.getElementById('chest-overlay');
+    const display = document.getElementById('new-card-display');
+    const card = gameData.cards.find(c => c.id === newCardId);
+    if(!card) return;
+
+    display.innerHTML = `
+        <div class="clash-card" style="transform: scale(1.5)">
+            <div class="cost">${card.cost}</div>
+            <img src="${card.img}">
+            <h4>${card.name}</h4>
+        </div>
+    `;
+    overlay.classList.remove('hidden');
+    setTimeout(() => overlay.classList.add('hidden'), 4000);
 }
