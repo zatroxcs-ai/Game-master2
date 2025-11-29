@@ -1136,34 +1136,38 @@ function renderJournalModule(container) {
 }
 
 // --- FONCTION SPÉCIALE POUR LE FORMULAIRE JOURNAL (Avec Checkboxes) ---
+// --- FONCTION SPÉCIALE JOURNAL (VERSION LARGE) ---
 function openJournalModal(title, initialData, onSave) {
     const modal = document.getElementById('modal-form');
+    const contentBox = modal.querySelector('.modal-content'); // La boîte blanche
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
 
-    // Réinitialisation
+    // 1. ACTIVATION DU MODE LARGE
+    contentBox.classList.add('modal-large');
+
+    // Réinitialisation standard
     document.getElementById('form-title').innerText = title;
     container.innerHTML = '';
     saveBtn.style.display = 'inline-block';
     saveBtn.innerText = 'Sauvegarder';
 
-    // 1. TITRE
+    // 2. GÉNÉRATION DES CHAMPS
+    // Titre et Date sur la même ligne pour gagner de la place
     container.innerHTML += `
-        <div class="form-group">
-            <label>Titre de la session</label>
-            <input type="text" id="j-title" value="${initialData.title}" placeholder="ex: La Caverne des Gobelins">
+        <div style="display:flex; gap:10px;">
+            <div class="form-group" style="flex:2">
+                <label>Titre de la session</label>
+                <input type="text" id="j-title" value="${initialData.title}" placeholder="ex: La Caverne des Gobelins">
+            </div>
+            <div class="form-group" style="flex:1">
+                <label>Date</label>
+                <input type="date" id="j-date" value="${initialData.date}">
+            </div>
         </div>
     `;
 
-    // 2. DATE
-    container.innerHTML += `
-        <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="j-date" value="${initialData.date}">
-        </div>
-    `;
-
-    // 3. PARTICIPANTS (CHECKBOXES)
+    // Participants
     let checksHtml = '<div class="checkbox-group">';
     gameData.players.forEach(p => {
         const isChecked = initialData.participants.includes(p.id) ? 'checked' : '';
@@ -1178,24 +1182,30 @@ function openJournalModal(title, initialData, onSave) {
 
     container.innerHTML += `
         <div class="form-group">
-            <label>Participants</label>
+            <label>Participants présents</label>
             ${checksHtml}
         </div>
     `;
 
-    // 4. CONTENU
+    // Contenu (Prendra toute la hauteur grâce au CSS)
     container.innerHTML += `
-        <div class="form-group">
-            <label>Résumé / Notes</label>
-            <textarea id="j-content" rows="8" placeholder="Racontez votre histoire...">${initialData.content}</textarea>
+        <div class="form-group" style="height:100%; display:flex; flex-direction:column;">
+            <label>Récit de l'aventure</label>
+            <textarea id="j-content" style="flex:1; resize:none; padding:15px; font-family:'Georgia', serif; font-size:1.1rem; line-height:1.6;" placeholder="Il était une fois...">${initialData.content}</textarea>
         </div>
     `;
 
     // Affichage
     modal.style.display = 'flex';
 
-    // Gestion Fermeture
-    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
+    // FONCTION DE NETTOYAGE (Pour remettre la modale normale après)
+    const closeModal = () => {
+        contentBox.classList.remove('modal-large'); // Retirer le mode large
+        modal.style.display = 'none';
+    };
+
+    // Gestion Fermeture (Croix)
+    modal.querySelector('.close-form').onclick = closeModal;
 
     // Gestion Sauvegarde
     saveBtn.onclick = null;
@@ -1204,7 +1214,6 @@ function openJournalModal(title, initialData, onSave) {
         const dateVal = document.getElementById('j-date').value;
         const contentVal = document.getElementById('j-content').value;
         
-        // Récupérer les cases cochées
         const selectedParticipants = [];
         document.querySelectorAll('.j-part-check:checked').forEach(box => {
             selectedParticipants.push(box.value);
@@ -1217,7 +1226,7 @@ function openJournalModal(title, initialData, onSave) {
                 content: contentVal,
                 participants: selectedParticipants
             });
-            modal.style.display = 'none';
+            closeModal(); // Ferme et nettoie
         } else {
             alert("Le titre et le contenu sont obligatoires.");
         }

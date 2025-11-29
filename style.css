@@ -539,3 +539,21 @@ p { color: #ddd; }
     user-select: none;
 }
 .checkbox-item input { margin-right: 5px; }
+
+/* MODALE LARGE (POUR LE JOURNAL) */
+.modal-large {
+    max-width: 800px !important; /* Plus large que la normale */
+    width: 95%; /* S'adapte sur mobile */
+    height: 80vh; /* Prend 80% de la hauteur */
+    display: flex;
+    flex-direction: column;
+}
+
+/* On force la zone de texte à prendre toute la place restante */
+.modal-large #form-fields {
+    flex: 1;
+    overflow-y: auto;
+}
+.modal-large textarea {
+    height: 300px; /* Zone de texte beaucoup plus haute */
+}
