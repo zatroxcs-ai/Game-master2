@@ -7,7 +7,7 @@ export const APP_CONFIG = {
 
 export const initialGameData = {
     config: {
-        mapUrl: 'github.com/zatroxcs-ai/Game-master2/tree/main/assets/map.png',
+        mapUrl: './assets/map.png',
         mapName: 'Arène Royale'
     },
     players: [], // { id, name, avatar, gold, elixir, darkElixir, inventory, deck: [], x: 50, y: 50 }
