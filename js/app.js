@@ -6,6 +6,7 @@ let gameData = JSON.parse(JSON.stringify(initialGameData));
 let currentUser = { role: 'guest', id: null }; // role: 'dm' ou 'player'
 let currentTab = 'map'; // Onglet actif
 let prevDeckSize = 0; // Pour détecter les nouvelles cartes
+let selectedEntityId = null;
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -244,11 +245,6 @@ function renderPlayer() {
     else if (currentTab === 'p-quests') renderPlayerQuests(container, me);
     else if (currentTab === 'p-journal') renderJournalModule(container);
 }
-
-// --- MODULES DE RENDU ---
-
-// 1. MAP
-let selectedEntityId = null; // Variable globale pour le drag & drop (à mettre en haut du fichier avec les autres let)
 
 // Variable globale pour la sélection (déjà existante normalement)
 // let selectedEntityId = null; 
