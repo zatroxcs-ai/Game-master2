@@ -1,6 +1,5 @@
 import { initialGameData, generateId, formatTime } from './data.js';
 import { joinSession, createSession, syncGameData } from './cloud.js';
-2
 
 // --- STATE LOCAL ---
 let gameData = JSON.parse(JSON.stringify(initialGameData));
