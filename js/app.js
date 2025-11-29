@@ -218,17 +218,28 @@ function renderDM() {
 
 function renderPlayer() {
     const container = document.getElementById('player-content');
-    container.innerHTML = '';
+    container.innerHTML = ''; // Nettoyage
     
+    // Récupération du joueur
     const me = gameData.players.find(p => p.id === currentUser.id);
-    if (!me) return container.innerHTML = '<p>Votre personnage a été supprimé.</p>';
+    
+    // Cas d'erreur : Joueur supprimé
+    if (!me) {
+        container.innerHTML = `
+            <div style="text-align:center; padding-top:50px; color:white;">
+                <h1>☠️</h1>
+                <p>Ce personnage n'existe plus.</p>
+                <a href="index.html" class="btn btn-secondary">Retour</a>
+            </div>
+        `;
+        return;
+    }
 
-    document.getElementById('player-name-display').innerText = me.name;
-    document.getElementById('player-resources').innerHTML = `
-        <span style="color:gold">💰 ${me.gold}</span>
-        <span style="color:#d0006f">💧 ${me.elixir}</span>
-    `;
+    // On supprime les anciennes lignes qui mettaient à jour le header inexistant
+    // document.getElementById('player-name-display').innerText = ... (SUPPRIMÉ)
+    // document.getElementById('player-resources').innerHTML = ... (SUPPRIMÉ)
 
+    // Routing des onglets
     if (currentTab === 'p-stats') renderPlayerStats(container, me);
     else if (currentTab === 'p-map') renderMapModule(container, false);
     else if (currentTab === 'p-chat') renderChatModule(container);
