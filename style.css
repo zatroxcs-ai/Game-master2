@@ -52,12 +52,32 @@ body { margin: 0; font-family: 'Roboto', sans-serif; background-color: var(--cr-
 /* CONTENT GENERAL */
 main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 
-/* MODULE: MAP */
+
+/* MODULE: MAP (CADRAGE CORRIGÉ) */
 .map-container {
-    position: relative; width: 100%; height: 600px;
-    background: #333; overflow: hidden; border: 4px solid var(--cr-wood); border-radius: 8px;
+    position: relative;
+    width: 100%;
+    height: 600px; /* Tu peux augmenter ça si tu veux une carte plus grande */
+    background: #1a1a1a; /* Fond gris foncé pour les bandes noires */
+    overflow: hidden;
+    border: 4px solid var(--cr-wood);
+    border-radius: 8px;
+    
+    /* Centre l'image parfaitement */
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
-.map-img { width: 100%; height: 100%; object-fit: cover; }
+
+.map-img {
+    width: 100%;
+    height: 100%;
+    
+    /* C'est LA ligne importante : */
+    /* 'contain' = Affiche tout (avec bandes noires si besoin) */
+    /* 'cover' = Remplit tout (coupe les bords) */
+    object-fit: contain; 
+}
 .pawn {
     position: absolute; width: 40px; height: 40px; border-radius: 50%;
     border: 3px solid white; background-size: cover; cursor: grab;
