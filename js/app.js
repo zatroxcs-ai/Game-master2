@@ -208,8 +208,18 @@ function render() {
 }
 
 function renderDM() {
-    // Header et Navigation
+    // 1. INITIALISATION DES TYPES DE RESSOURCES (Si inexistant)
+    if (!gameData.resourceTypes) {
+        gameData.resourceTypes = [
+            { id: 'gold', name: 'Or', icon: '💰', color: '#ffbd2e' },
+            { id: 'elixir', name: 'Élixir', icon: '💧', color: '#d6308e' }
+        ];
+        // On sauvegarde silencieusement pour appliquer la structure
+        syncGameData(gameData);
+    }
+    
     const header = document.querySelector('#dm-screen header');
+    // ...
     // On met à jour la navigation pour inclure l'onglet Système
     header.querySelector('#dm-nav').innerHTML = `
         <button data-tab="map" class="${currentTab === 'map' ? 'active' : ''}">Carte</button>
@@ -541,9 +551,20 @@ function openMapManager() {
 }
 
 // 2. PLAYERS & PNJ (Avec bouton Deck Manager)
+// 2. PLAYERS & PNJ (VERSION RESSOURCES DYNAMIQUES)
 function renderPlayersModule(container) {
-    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-add-p" class="btn btn-primary">+ Nouveau Personnage</button></div>';
+    // En-tête avec le bouton de gestion des ressources
+    container.innerHTML = `
+        <div style="margin-bottom:15px; display:flex; gap:10px;">
+            <button id="btn-add-p" class="btn btn-primary" style="flex:1">+ Nouveau Personnage</button>
+            <button id="btn-manage-res" class="btn btn-secondary">💎 Gérer Ressources</button>
+        </div>
+    `;
     
+    // Action Bouton Gestion Ressources
+    document.getElementById('btn-manage-res').onclick = () => openResourceManager();
+
+    // Action Bouton Création Perso
     document.getElementById('btn-add-p').onclick = () => {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
@@ -553,7 +574,8 @@ function renderPlayersModule(container) {
         ], (data) => {
             const newChar = {
                 id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc,
-                gold: 0, elixir: 0, deck: [], inventory: '', x: 50, y: 50
+                deck: [], inventory: '', x: 50, y: 50
+                // Note: Les ressources seront créées à la volée
             };
             if(data.type === 'player') gameData.players.push(newChar);
             else gameData.npcs.push(newChar);
@@ -572,15 +594,26 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
-        // Zone input ressources (Joueur uniquement)
-        const resourcesHtml = type === 'player' ? `
-            <div style="margin-top:5px;">
-                <span style="font-size:0.8rem">💰</span> 
-                <input type="number" class="res-input" data-id="${char.id}" data-type="gold" style="width:50px; padding:2px;" value="${char.gold}">
-                <span style="font-size:0.8rem; margin-left:5px">💧</span> 
-                <input type="number" class="res-input" data-id="${char.id}" data-type="elixir" style="width:50px; padding:2px;" value="${char.elixir}">
-            </div>
-        ` : '';
+        // --- GÉNÉRATION DYNAMIQUE DES INPUTS ---
+        let resourcesHtml = '';
+        if (type === 'player' && gameData.resourceTypes) {
+            resourcesHtml = '<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px;">';
+            gameData.resourceTypes.forEach(res => {
+                // On récupère la valeur actuelle ou 0
+                const val = char[res.id] !== undefined ? char[res.id] : 0;
+                resourcesHtml += `
+                    <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
+                        <span style="font-size:0.8rem; margin-right:2px;" title="${res.name}">${res.icon}</span> 
+                        <input type="number" class="res-input" 
+                            data-id="${char.id}" 
+                            data-type="${res.id}" 
+                            style="width:50px; padding:2px; border:1px solid #ccc;" 
+                            value="${val}">
+                    </div>
+                `;
+            });
+            resourcesHtml += '</div>';
+        }
 
         row.innerHTML = `
             <img src="${char.avatar}" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
@@ -591,31 +624,30 @@ function renderPlayersModule(container) {
             </div>
             <div style="display:flex; flex-direction:column; gap:5px">
                 <div style="display:flex; gap:5px">
-                    <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:#7c4dff; margin:0" id="deck-${char.id}" title="Gérer les cartes">🎴</button>
+                    <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:#7c4dff; margin:0" id="deck-${char.id}">🎴</button>
                     <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:orange; margin:0" id="edit-${char.id}">✏️</button>
                 </div>
                 <button class="btn" style="padding:5px 10px; font-size:0.8rem; background:red; margin:0" id="del-${char.id}">🗑️</button>
             </div>
         `;
 
-        // Listeners Ressources
+        // Listeners Ressources Dynamiques
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
                 const val = parseInt(e.target.value) || 0;
-                const fieldType = e.target.dataset.type;
+                const fieldType = e.target.dataset.type; // ex: 'gold', 'mana'
                 const pid = e.target.dataset.id;
-                const targetP = gameData.players.find(x => x.id === pid);
+                
+                const targetP = findEntityById(pid);
                 if(targetP) {
-                    targetP[fieldType] = val;
+                    targetP[fieldType] = val; // Mise à jour dynamique
                     syncGameData(gameData);
                 }
             };
         });
 
-        // 1. GESTION DECK (NOUVEAU)
+        // Boutons actions (inchangés)
         row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
-
-        // 2. EDITION
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
@@ -628,8 +660,6 @@ function renderPlayersModule(container) {
                 saveData(`Modification de ${char.name}`);
             });
         };
-
-        // 3. SUPPRESSION
         row.querySelector(`#del-${char.id}`).onclick = () => {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
@@ -639,6 +669,15 @@ function renderPlayersModule(container) {
         };
         list.appendChild(row);
     };
+
+    gameData.players.forEach(p => renderRow(p, 'player'));
+    if(gameData.npcs.length > 0) {
+        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
+        list.appendChild(sep);
+        gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    }
+    container.appendChild(list);
+}
 
     gameData.players.forEach(p => renderRow(p, 'player'));
     if(gameData.npcs.length > 0) {
@@ -1363,22 +1402,30 @@ function openJournalModal(title, initialData, onSave) {
 }
 
 // MODULE JOUEUR: PROFIL & STATS (INVENTAIRE VERROUILLÉ)
+// MODULE JOUEUR: PROFIL (RESSOURCES DYNAMIQUES)
 function renderPlayerStats(container, p) {
-    // 1. En-tête "Juicy" (Avatar + Ressources)
+    // Génération dynamique des pilules
+    let pillsHtml = '';
+    if (gameData.resourceTypes) {
+        gameData.resourceTypes.forEach(res => {
+            const val = p[res.id] !== undefined ? p[res.id] : 0;
+            // Calcul d'une couleur plus claire pour le texte
+            pillsHtml += `
+                <div class="res-pill">
+                    <div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div>
+                    <span style="color:${res.color}; filter:brightness(1.5)">${val}</span>
+                </div>
+            `;
+        });
+    }
+
     const header = document.createElement('div');
     header.className = 'profile-header';
     header.innerHTML = `
         <img src="${p.avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/147/147144.png'">
         <div class="profile-name">${p.name}</div>
-        <div class="resource-row">
-            <div class="res-pill">
-                <div class="res-icon" style="background:#ffbd2e; color:#5c4300">💰</div>
-                <span style="color:#ffbd2e">${p.gold}</span>
-            </div>
-            <div class="res-pill">
-                <div class="res-icon" style="background:#d6308e; color:white">💧</div>
-                <span style="color:#ff8dc7">${p.elixir}</span>
-            </div>
+        <div class="resource-row" style="flex-wrap:wrap">
+            ${pillsHtml}
         </div>
         <div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">
             ${p.desc || 'Un héros sans histoire...'}
@@ -1386,30 +1433,21 @@ function renderPlayerStats(container, p) {
     `;
     container.appendChild(header);
 
-    // 2. Corps du tableau de bord
+    // Le reste ne change pas (Inventaire lecture seule + Deck)
     const dashboard = document.createElement('div');
     dashboard.className = 'player-dashboard';
     
-    // --- INVENTAIRE (LECTURE SEULE) ---
     dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
-    
     const invInput = document.createElement('textarea');
     invInput.className = 'inventory-box';
-    // On met un message par défaut si vide
     invInput.value = p.inventory || 'Votre sac est vide.';
-    
-    // --- CHANGEMENTS ICI ---
-    invInput.readOnly = true; // Bloque l'écriture
-    // Style visuel pour montrer que c'est verrouillé
+    invInput.readOnly = true; 
     invInput.style.backgroundColor = '#e6e6e6'; 
     invInput.style.color = '#555';
     invInput.style.cursor = 'default';
     invInput.style.outline = 'none';
-    // -----------------------
-    
     dashboard.appendChild(invInput);
 
-    // --- DECK INTERACTIF (Reste inchangé) ---
     dashboard.innerHTML += `
         <h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck de Combat</h3>
         <p class="play-hint">Clique sur une carte pour la jouer dans le chat !</p>
@@ -1417,7 +1455,6 @@ function renderPlayerStats(container, p) {
 
     const deckGrid = document.createElement('div');
     deckGrid.className = 'card-grid player-deck';
-    
     if(p.deck.length === 0) {
         deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Deck vide. Demande au MJ !</p>';
     } else {
@@ -1431,20 +1468,16 @@ function renderPlayerStats(container, p) {
                     <img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
                     <h4>${c.name}</h4>
                 `;
-                
-                // Interaction: Jouer la carte
                 el.onclick = () => {
                     if(confirm(`Utiliser la carte "${c.name}" ?\nCela l'affichera dans le chat.`)) {
                         playCardAction(p.name, c);
                     }
                 };
-                
                 deckGrid.appendChild(el);
             }
         });
     }
     dashboard.appendChild(deckGrid);
-    
     container.appendChild(dashboard);
 }
 
@@ -1801,4 +1834,84 @@ function renderSystemModule(container) {
     infoBox.style.marginTop = '20px';
     infoBox.innerHTML = `<small>Session ID : <strong>${document.getElementById('session-input').value}</strong></small>`;
     container.appendChild(infoBox);
+}
+
+// --- GESTIONNAIRE DE RESSOURCES (MJ) ---
+function openResourceManager() {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    saveBtn.style.display = 'none';
+    modal.style.display = 'flex';
+    document.getElementById('form-title').innerText = 'Types de Ressources';
+
+    const renderList = () => {
+        container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-res" class="btn btn-primary">+ Nouvelle Ressource</button></div>';
+
+        // Action Créer
+        container.querySelector('#btn-new-res').onclick = () => {
+            modal.style.display = 'none';
+            openFormModal('Nouvelle Ressource', [
+                { name: 'name', label: 'Nom (ex: Mana)', value: '' },
+                { name: 'icon', label: 'Emoji/Icone (ex: 🧿)', value: '🧿' },
+                { name: 'color', label: 'Couleur (Hex ou nom)', value: '#3498db' },
+                { name: 'id', label: 'ID Technique (minuscules, sans espace)', value: 'mana' }
+            ], (data) => {
+                // On vérifie que l'ID est unique
+                if(gameData.resourceTypes.find(r => r.id === data.id)) return alert("Cet ID existe déjà !");
+                
+                gameData.resourceTypes.push({
+                    id: data.id.toLowerCase().replace(/\s/g, ''),
+                    name: data.name,
+                    icon: data.icon,
+                    color: data.color
+                });
+                saveData(`Ajout ressource : ${data.name}`);
+                setTimeout(openResourceManager, 100);
+            });
+        };
+
+        const list = document.createElement('div');
+        list.style.maxHeight = '400px'; 
+        list.style.overflowY = 'auto';
+
+        gameData.resourceTypes.forEach((res, index) => {
+            const row = document.createElement('div');
+            row.className = 'panel';
+            row.style.marginBottom = '10px';
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.borderLeft = `5px solid ${res.color}`;
+
+            row.innerHTML = `
+                <div>
+                    <span style="font-size:1.5rem; margin-right:10px;">${res.icon}</span>
+                    <strong>${res.name}</strong> <small style="color:#888">(${res.id})</small>
+                </div>
+                <div>
+                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px;" id="del-res-${index}">🗑️</button>
+                </div>
+            `;
+
+            row.querySelector(`#del-res-${index}`).onclick = () => {
+                if(confirm(`Supprimer la ressource "${res.name}" ?\nCela ne supprimera pas les valeurs stockées sur les joueurs, mais l'affichage disparaîtra.`)) {
+                    gameData.resourceTypes.splice(index, 1);
+                    saveData();
+                    renderList();
+                }
+            };
+            list.appendChild(row);
+        });
+        container.appendChild(list);
+    };
+
+    renderList();
+
+    modal.querySelector('.close-form').onclick = () => {
+        saveBtn.style.display = 'inline-block';
+        modal.style.display = 'none';
+        render(); // Rafraîchir l'interface globale
+    };
 }
