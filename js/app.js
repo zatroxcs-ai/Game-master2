@@ -865,7 +865,7 @@ function renderCardsModule(container) {
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom', value: '' },
             { name: 'cost', label: 'Coût', type: 'number', value: '3' },
-            { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' },
+            { name: 'img', label: 'Image URL', value: './assets/cards/mirror.png' },
             { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
         ], (data) => {
             gameData.cards.push({ id: generateId(), name: data.name, cost: parseInt(data.cost), img: data.img, desc: data.desc });
@@ -1545,62 +1545,62 @@ function showQRCode() {
     generateQR();
 }
 
-// --- GESTIONNAIRE DE DECK (MJ) - VERSION ROBUSTE ---
+// --- GESTIONNAIRE DE DECK (CORRIGÉ & STABLE) ---
 function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    // On garde l'ID en mémoire
+    // On garde l'ID pour retrouver l'entité fraîche à chaque fois
     const targetId = entityArg.id;
 
     saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
     modal.style.display = 'flex';
 
-    // Fonction qui redessine le contenu de la fenêtre
+    // Fonction de rendu interne
     const renderManager = () => {
-        // 1. On récupère la version la plus récente du personnage
+        // 1. On récupère l'entité fraîche via la fonction globale
         const freshEntity = findEntityById(targetId);
         
-        // Sécurité : si le perso n'existe plus
+        // Si l'entité n'existe plus, on ferme
         if (!freshEntity) return modal.style.display = 'none';
 
-        // Mise à jour du titre
+        // Titre dynamique
         const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
         document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
         
         container.innerHTML = ''; 
 
-        // --- SECTION 1 : CARTES POSSÉDÉES ---
+        // --- ZONE 1 : DECK ACTUEL ---
         const currentSection = document.createElement('div');
         currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:var(--cr-blue)">Inventaire (Cliquer pour retirer)</h4>';
         
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        if (!freshEntity.deck) freshEntity.deck = [];
+        if (!freshEntity.deck) freshEntity.deck = []; // Sécurité
 
         if (freshEntity.deck.length === 0) {
-            currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%; padding:10px;">Le deck est vide.</p>';
+            currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
         } else {
             freshEntity.deck.forEach((cardId, index) => {
                 const card = gameData.cards.find(c => c.id === cardId);
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
-                    el.style.borderColor = '#ff4d4d'; // Rouge
-                    el.title = "Retirer";
+                    el.style.borderColor = '#ff4d4d'; // Rouge léger
+                    el.title = "Retirer du deck";
                     el.innerHTML = `
                         <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
-                        <div style="font-size:0.6rem; padding:2px; white-space:nowrap; overflow:hidden;">${card.name}</div>
+                        <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                         <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
                     `;
                     
-                    // ACTION : RETIRER
+                    // --- CORRECTION ICI ---
                     el.onclick = () => {
-                        freshEntity.deck.splice(index, 1); // 1. Modifie le tableau local
-                        renderManager();                   // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
-                        window.syncGameData(gameData);            // 3. Sauvegarde silencieuse
+                        freshEntity.deck.splice(index, 1); 
+                        renderManager(); 
+                        syncGameData(gameData); // Appel direct (sans window.)
                     };
                     currentList.appendChild(el);
                 }
@@ -1609,9 +1609,9 @@ function openDeckManager(entityArg) {
         currentSection.appendChild(currentList);
         container.appendChild(currentSection);
 
-        // --- SECTION 2 : AJOUTER DES CARTES ---
+        // --- ZONE 2 : BIBLIOTHÈQUE ---
         const librarySection = document.createElement('div');
-        librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Bibliothèque (Cliquer pour ajouter)</h4>';
+        librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Ajouter (Cliquer pour donner)</h4>';
         
         const libraryList = document.createElement('div');
         libraryList.className = 'deck-manager-section mini-card-grid';
@@ -1620,18 +1620,18 @@ function openDeckManager(entityArg) {
             const el = document.createElement('div');
             el.className = 'mini-card';
             el.style.borderColor = '#4caf50'; // Vert
-            el.title = "Ajouter";
+            el.title = "Ajouter au deck";
             el.innerHTML = `
                 <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
-                <div style="font-size:0.6rem; padding:2px; white-space:nowrap; overflow:hidden;">${card.name}</div>
+                <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                 <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
             `;
             
-            // ACTION : AJOUTER
+            // --- CORRECTION ICI ---
             el.onclick = () => {
-                freshEntity.deck.push(card.id); // 1. Modifie le tableau local
-                renderManager();                // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
-                window.syncGameData(gameData);         // 3. Sauvegarde silencieuse
+                freshEntity.deck.push(card.id);
+                renderManager();
+                syncGameData(gameData); // Appel direct (sans window.)
             };
             libraryList.appendChild(el);
         });
@@ -1640,16 +1640,17 @@ function openDeckManager(entityArg) {
         container.appendChild(librarySection);
     };
 
-    // Premier affichage
+    // Lancement initial
     renderManager();
 
-    // Gestion de fermeture
+    // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
         modal.style.display = 'none';
         render(); // Un dernier rafraîchissement global pour être sûr
     };
 }
+
 
 // Remplace la fonction updateLocalData existante
 function updateLocalData(newData) {

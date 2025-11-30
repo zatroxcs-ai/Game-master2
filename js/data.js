@@ -14,9 +14,9 @@ export const initialGameData = {
     npcs: [],    // Même structure que players
     chat: [],    // { id, sender, text, timestamp, channel: 'global'|'private', targetId }
     cards: [     // Database de cartes
-        { id: 'c1', name: 'Chevalier', cost: 3, type: 'troupe', img: 'Game-master2/cartes/', desc: 'Un combattant de mêlée robuste.' },
-        { id: 'c2', name: 'Mousquetaire', cost: 4, type: 'troupe', img: 'Game-master2/cartes/', desc: 'Tire de loin.' },
-        { id: 'c3', name: 'Boule de Feu', cost: 4, type: 'sort', img: 'Game-master2/cartes/', desc: 'Boum !' }
+        { id: 'c1', name: 'Chevalier', cost: 3, type: 'troupe', img: './assets/cards/knight.png', desc: 'Un combattant de mêlée robuste.' },
+        { id: 'c2', name: 'Mousquetaire', cost: 4, type: 'troupe', img: './assets/cards/musketeer.png', desc: 'Tire de loin.' },
+        { id: 'c3', name: 'Boule de Feu', cost: 4, type: 'sort', img: './assets/cards/fireball.png', desc: 'Boum !' }
     ],
     relations: [], // { sourceId, targetId, status: 'friendly'|'hostile'|'neutral' }
     quests: [],    // { id, title, desc, reward, assignedTo: [], completed: false }
