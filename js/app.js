@@ -1139,52 +1139,46 @@ function renderCardsModule(container) {
     }
 }
 
-// 5. RELATIONS V2 (FIX COULEURS + HOVER)
+// 5. RELATIONS (SÉLECTION SÉPARÉE JOUEURS / PNJ)
 function renderRelationsModule(container) {
     if (!gameData.relations) gameData.relations = [];
-    const entities = [...gameData.players, ...gameData.npcs];
+    
+    // On sépare les listes pour l'affichage
+    const players = gameData.players || [];
+    const npcs = gameData.npcs || [];
+    const allEntities = [...players, ...npcs];
 
-    if(entities.length < 2) {
+    if(allEntities.length < 2) {
         return container.innerHTML = '<div class="panel" style="color:#333">Il faut au moins 2 personnages pour avoir des relations.</div>';
     }
 
-    // Sélection par défaut
-    if (!selectedRelCharId || !entities.find(e => e.id === selectedRelCharId)) {
-        selectedRelCharId = entities[0].id;
+    // Sélection par défaut (Sécurité)
+    if (!selectedRelCharId || !allEntities.find(e => e.id === selectedRelCharId)) {
+        selectedRelCharId = allEntities[0].id;
     }
 
-    const selectedEntity = entities.find(e => e.id === selectedRelCharId);
+    const selectedEntity = allEntities.find(e => e.id === selectedRelCharId);
 
-    // 1. EN-TÊTE (Avec couleurs forcées et Zone de Nom)
+    // 1. EN-TÊTE
     container.innerHTML = `
         <h2 style="color:var(--cr-blue-dark); text-align:center; margin-bottom:5px;">Réseau d'Influence</h2>
-        <p class="hint" style="color:#555; text-align:center; margin:0 0 10px 0;">
-            Sélectionnez un personnage pour voir son point de vue.
-        </p>
         
-        <div id="rel-name-display" style="height:30px; line-height:30px; text-align:center; font-weight:900; color:var(--cr-blue); font-size:1.2rem; text-transform:uppercase; margin-bottom:5px;">
+        <div id="rel-name-display" style="height:30px; line-height:30px; text-align:center; font-weight:900; color:var(--cr-blue); font-size:1.2rem; text-transform:uppercase; margin-bottom:10px;">
             ${selectedEntity ? selectedEntity.name : ''}
         </div>
     `;
 
-    // 2. SÉLECTEUR (Haut)
-    const selector = document.createElement('div');
-    selector.className = 'rel-selector';
-    
-    entities.forEach(e => {
+    // --- FONCTION HELPER POUR CRÉER UN AVATAR ---
+    const createAvatar = (e) => {
         const img = document.createElement('img');
         img.src = e.avatar;
         img.className = `rel-avatar-select ${e.id === selectedRelCharId ? 'active' : ''}`;
-        img.title = e.name; // Tooltip natif au cas où
         img.onerror = function() { this.src='https://placehold.co/60'; };
         
-        // --- INTERACTION HOVER ---
-        img.onmouseenter = () => {
-            document.getElementById('rel-name-display').innerText = e.name;
-        };
-        img.onmouseleave = () => {
-            // Quand on quitte, on remet le nom du perso sélectionné
-            const current = entities.find(x => x.id === selectedRelCharId);
+        // Hover effect
+        img.onmouseenter = () => { document.getElementById('rel-name-display').innerText = e.name; };
+        img.onmouseleave = () => { 
+            const current = allEntities.find(x => x.id === selectedRelCharId);
             document.getElementById('rel-name-display').innerText = current ? current.name : '';
         };
 
@@ -1192,13 +1186,39 @@ function renderRelationsModule(container) {
             selectedRelCharId = e.id;
             renderRelationsModule(container); // Recharger la vue
         };
-        selector.appendChild(img);
-    });
-    container.appendChild(selector);
+        return img;
+    };
 
-    // 3. LE TABLEAU DE BORD (3 Colonnes)
+    // 2. LIGNE DES JOUEURS
+    if (players.length > 0) {
+        const titleP = document.createElement('h4');
+        titleP.style.cssText = "margin: 0 0 5px 10px; color: var(--cr-blue); font-size: 0.9rem; text-transform: uppercase;";
+        titleP.innerText = "Joueurs";
+        container.appendChild(titleP);
+
+        const selectorP = document.createElement('div');
+        selectorP.className = 'rel-selector';
+        players.forEach(p => selectorP.appendChild(createAvatar(p)));
+        container.appendChild(selectorP);
+    }
+
+    // 3. LIGNE DES PNJ
+    if (npcs.length > 0) {
+        const titleN = document.createElement('h4');
+        titleN.style.cssText = "margin: 10px 0 5px 10px; color: var(--cr-wood); font-size: 0.9rem; text-transform: uppercase;";
+        titleN.innerText = "PNJ";
+        container.appendChild(titleN);
+
+        const selectorN = document.createElement('div');
+        selectorN.className = 'rel-selector';
+        npcs.forEach(n => selectorN.appendChild(createAvatar(n)));
+        container.appendChild(selectorN);
+    }
+
+    // 4. LE TABLEAU DE BORD (Point de vue)
     const board = document.createElement('div');
     board.className = 'rel-board';
+    board.style.marginTop = "20px";
 
     const cols = {
         friendly: { title: '💚 Alliés / Amis', color: '#28a745', list: [] },
@@ -1206,7 +1226,7 @@ function renderRelationsModule(container) {
         hostile:  { title: '❤️ Hostiles / Ennemis', color: '#dc3545', list: [] }
     };
 
-    entities.forEach(target => {
+    allEntities.forEach(target => {
         if (target.id === selectedRelCharId) return; 
 
         const rel = gameData.relations.find(r => r.source === selectedRelCharId && r.target === target.id);
@@ -1224,7 +1244,6 @@ function renderRelationsModule(container) {
         colDiv.className = 'rel-column';
         colDiv.style.borderTop = `4px solid ${colData.color}`;
         
-        // Couleur forcée ici aussi pour être sûr
         colDiv.innerHTML = `<h3 style="color:${colData.color}; margin-top:5px;">${colData.title}</h3>`;
         
         if (colData.list.length === 0) {
@@ -1242,7 +1261,8 @@ function renderRelationsModule(container) {
 
                 card.innerHTML = `
                     <img src="${char.avatar}" onerror="this.src='https://placehold.co/40'">
-                    <div style="flex:1; color:#333;"> <strong>${char.name}</strong>
+                    <div style="flex:1; color:#333;">
+                        <strong>${char.name}</strong>
                     </div>
                     <div style="font-size:1.2rem">${icon}</div>
                 `;
@@ -1250,7 +1270,17 @@ function renderRelationsModule(container) {
                 if(currentUser.role === 'dm') {
                     card.title = "Cliquez pour changer la relation";
                     card.onclick = () => {
-                        cycleRelation(selectedRelCharId, char.id, char.realStatus);
+                        const states = ['neutral', 'friendly', 'hostile', 'ally'];
+                        const nextStatus = states[(states.indexOf(char.realStatus) + 1) % states.length];
+                        
+                        const existingIndex = gameData.relations.findIndex(r => r.source === selectedRelCharId && r.target === char.id);
+                        if (existingIndex >= 0) {
+                            gameData.relations[existingIndex].status = nextStatus;
+                        } else {
+                            gameData.relations.push({ source: selectedRelCharId, target: char.id, status: nextStatus });
+                        }
+                        
+                        saveData();
                     };
                 } else {
                     card.style.cursor = 'default';
