@@ -550,7 +550,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS (CORRECTION LARGEUR INPUTS)
+// 2. PLAYERS (TRI ALPHABÉTIQUE + RESSOURCES DYNAMIQUES)
 function renderPlayersModule(container) {
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
@@ -578,6 +578,9 @@ function renderPlayersModule(container) {
 
     const list = document.createElement('div');
     
+    // --- FONCTION DE TRI ALPHABÉTIQUE ---
+    const sortByName = (a, b) => a.name.localeCompare(b.name);
+
     const renderRow = (char, type) => {
         const row = document.createElement('div');
         row.className = 'panel';
@@ -635,15 +638,8 @@ function renderPlayersModule(container) {
                 const pid = e.target.dataset.id;
                 const max = parseInt(e.target.dataset.max);
 
-                if (val > max) {
-                    val = max;
-                    e.target.value = max;
-                    alert(`Maximum atteint (${max})`);
-                }
-                if (val < 0) {
-                    val = 0;
-                    e.target.value = 0;
-                }
+                if (val > max) { val = max; e.target.value = max; alert(`Maximum atteint (${max})`); }
+                if (val < 0) { val = 0; e.target.value = 0; }
 
                 const targetP = findEntityById(pid);
                 if(targetP) { targetP[fieldType] = val; syncGameData(gameData); }
@@ -673,11 +669,24 @@ function renderPlayersModule(container) {
         list.appendChild(row);
     };
 
-    gameData.players.forEach(p => renderRow(p, 'player'));
-    if(gameData.npcs.length > 0) {
-        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
-        list.appendChild(sep); gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    // --- APPLICATION DU TRI ---
+    // On crée des copies triées pour l'affichage (ne modifie pas l'ordre DB)
+    const sortedPlayers = [...gameData.players].sort(sortByName);
+    const sortedNPCs = [...gameData.npcs].sort(sortByName);
+
+    if(sortedPlayers.length > 0) {
+        list.innerHTML += `<h3 style="margin-top:0; border-bottom:2px solid var(--cr-blue); color:var(--cr-blue)">Joueurs</h3>`;
+        sortedPlayers.forEach(p => renderRow(p, 'player'));
     }
+    
+    if(sortedNPCs.length > 0) {
+        const sep = document.createElement('h3'); 
+        sep.innerHTML = `PNJ`; 
+        sep.style.cssText = 'margin-top:20px; border-bottom:2px solid var(--cr-wood); color:var(--cr-wood)';
+        list.appendChild(sep);
+        sortedNPCs.forEach(n => renderRow(n, 'npc'));
+    }
+    
     container.appendChild(list);
 }
 
@@ -857,46 +866,112 @@ function renderChatModule(container) {
     }
 }
 
-// 4. CARTES (ITEMS)
+// 4. CARTES (TRIÉES PAR CATÉGORIE + ALPHABÉTIQUE)
 function renderCardsModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
 
+    // --- FORMULAIRE DE CRÉATION (Avec choix du Type) ---
     document.getElementById('btn-create-card').onclick = () => {
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom', value: '' },
+            // On ajoute le sélecteur de type
+            { name: 'type', label: 'Catégorie', type: 'select', options: [
+                {value:'troupe', label:'Troupes / Personnages'},
+                {value:'sort', label:'Sorts / Pouvoirs'},
+                {value:'batiment', label:'Bâtiments / Lieux'},
+                {value:'objet', label:'Objets / Items'}
+            ], value: 'objet' },
             { name: 'cost', label: 'Coût', type: 'number', value: '3' },
             { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' },
             { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
         ], (data) => {
-            gameData.cards.push({ id: generateId(), name: data.name, cost: parseInt(data.cost), img: data.img, desc: data.desc });
+            gameData.cards.push({ 
+                id: generateId(), 
+                name: data.name, 
+                type: data.type, // On sauvegarde le type
+                cost: parseInt(data.cost), 
+                img: data.img, 
+                desc: data.desc 
+            });
             saveData(`Carte créée : ${data.name}`);
         });
     };
 
-    const grid = document.createElement('div');
-    grid.className = 'card-grid';
-    
+    // --- LOGIQUE DE TRI ---
+    // 1. Définition des catégories et de leur ordre
+    const categories = {
+        'troupe': { title: '⚔️ Troupes', cards: [] },
+        'sort': { title: '🧪 Sorts', cards: [] },
+        'batiment': { title: '🏰 Bâtiments', cards: [] },
+        'objet': { title: '🎒 Objets', cards: [] },
+        'autre': { title: '❓ Autres', cards: [] }
+    };
+
+    // 2. Répartition des cartes dans les catégories
     gameData.cards.forEach(c => {
-        const el = document.createElement('div');
-        el.className = 'clash-card';
-        el.style.cursor = 'pointer';
-        el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
-        
-        el.onclick = () => {
-            openFormModal(`Modifier ${c.name}`, [
-                { name: 'name', label: 'Nom', value: c.name },
-                { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
-                { name: 'img', label: 'Image URL', value: c.img },
-                { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
-            ], (data) => {
-                c.name = data.name; c.cost = parseInt(data.cost); c.img = data.img; c.desc = data.desc;
-                saveData(`Carte modifiée : ${c.name}`);
-            });
-        };
-        grid.appendChild(el);
+        // Si le type est connu, on le met dedans, sinon dans "autre"
+        const catKey = (c.type && categories[c.type]) ? c.type : 'autre';
+        categories[catKey].cards.push(c);
     });
-    container.appendChild(grid);
+
+    // 3. Tri alphabétique à l'intérieur de chaque catégorie
+    Object.keys(categories).forEach(key => {
+        categories[key].cards.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    // --- AFFICHAGE ---
+    // On boucle sur chaque catégorie pour l'afficher
+    Object.keys(categories).forEach(key => {
+        const cat = categories[key];
+        if (cat.cards.length > 0) {
+            // Titre de la section
+            const header = document.createElement('h3');
+            header.style.cssText = "margin-top:20px; border-bottom: 2px solid #ccc; color:#555;";
+            header.innerText = cat.title;
+            container.appendChild(header);
+
+            // Grille de cartes
+            const grid = document.createElement('div');
+            grid.className = 'card-grid';
+
+            cat.cards.forEach(c => {
+                const el = document.createElement('div');
+                el.className = 'clash-card';
+                el.style.cursor = 'pointer';
+                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'"><h4>${c.name}</h4>`;
+                
+                // Modification (On remet aussi le champ Type ici pour pouvoir le changer)
+                el.onclick = () => {
+                    openFormModal(`Modifier ${c.name}`, [
+                        { name: 'name', label: 'Nom', value: c.name },
+                        { name: 'type', label: 'Catégorie', type: 'select', options: [
+                            {value:'troupe', label:'Troupes'}, {value:'sort', label:'Sorts'},
+                            {value:'batiment', label:'Bâtiments'}, {value:'objet', label:'Objets'}
+                        ], value: c.type || 'objet' },
+                        { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
+                        { name: 'img', label: 'Image URL', value: c.img },
+                        { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
+                    ], (data) => {
+                        c.name = data.name;
+                        c.type = data.type; // Mise à jour du type
+                        c.cost = parseInt(data.cost);
+                        c.img = data.img;
+                        c.desc = data.desc;
+                        saveData(`Carte modifiée : ${c.name}`);
+                    });
+                };
+                grid.appendChild(el);
+            });
+            container.appendChild(grid);
+        }
+    });
+    
+    // Si aucune carte n'existe
+    if (gameData.cards.length === 0) {
+        container.innerHTML += '<p style="opacity:0.5; text-align:center">Aucune carte dans la collection.</p>';
+    }
 }
+
 
 // 5. RELATIONS V2 (FIX COULEURS + HOVER)
 function renderRelationsModule(container) {
