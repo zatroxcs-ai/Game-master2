@@ -276,6 +276,7 @@ function renderPlayer() {
 
 // 1. MAP & ATLAS
 // MODULE MAP (AVEC POSITIONS SAUVEGARDÉES PAR CARTE)
+// MODULE MAP (GESTION DE PRÉSENCE PAR ZONE)
 function renderMapModule(container, isEditable) {
     // Initialisation Maps
     if (!gameData.maps) {
@@ -284,7 +285,7 @@ function renderMapModule(container, isEditable) {
         syncGameData(gameData);
     }
 
-    // Récupérer carte active
+    // Carte Active
     let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
     if(!currentMap || !currentMap.url) currentMap = { url: './assets/map.png', name: 'Défaut', id: 'default' };
 
@@ -292,42 +293,75 @@ function renderMapModule(container, isEditable) {
     wrapper.className = 'map-container';
     wrapper.style.backgroundColor = '#222';
     
+    // --- COUCHE 1 : L'IMAGE ---
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
-    img.onerror = function() { this.style.display = 'none'; }; // Fix boucle infinie
-    
-    // LOGIQUE DE DÉPLACEMENT
-    if(isEditable) {
-        wrapper.addEventListener('click', (e) => {
-            if(e.target.tagName === 'BUTTON') return; // Ignore les boutons
+    img.onerror = function() { this.style.display = 'none'; };
+    wrapper.appendChild(img);
 
-            if (selectedEntityId) {
-                // On utilise la fonction de recherche globale
-                let entity = findEntityById(selectedEntityId);
+    // --- COUCHE 2 : INTERFACE DE GESTION (ROSTER) ---
+    // Un panneau à droite pour voir où sont les joueurs et les amener ici
+    if (isEditable) {
+        const rosterPanel = document.createElement('div');
+        rosterPanel.style.position = 'absolute';
+        rosterPanel.style.top = '10px';
+        rosterPanel.style.right = '10px';
+        rosterPanel.style.width = '160px';
+        rosterPanel.style.background = 'rgba(0,0,0,0.8)';
+        rosterPanel.style.padding = '10px';
+        rosterPanel.style.borderRadius = '8px';
+        rosterPanel.style.color = 'white';
+        rosterPanel.style.zIndex = '200';
+        rosterPanel.style.maxHeight = '80%';
+        rosterPanel.style.overflowY = 'auto';
 
-                if (entity) {
-                    const rect = wrapper.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    
-                    // --- NOUVEAU SYSTÈME DE POSITION ---
-                    if (!entity.positions) entity.positions = {}; // Créer l'objet si inexistant
-                    entity.positions[currentMap.id] = { x, y };   // Sauver pour CETTE carte
-                    
-                    // On garde x/y pour la rétrocompatibilité ou l'affichage par défaut
-                    entity.x = x; 
-                    entity.y = y;
+        rosterPanel.innerHTML = '<h5 style="margin:0 0 10px 0; border-bottom:1px solid #555; padding-bottom:5px;">Présence Ici</h5>';
 
-                    syncGameData(gameData); // Sauvegarde rapide
-                    render(); 
+        [...gameData.players, ...gameData.npcs].forEach(entity => {
+            // Initialisation de la mapId si elle n'existe pas
+            if (!entity.mapId) entity.mapId = 'default';
+
+            const isOnMap = entity.mapId === currentMap.id;
+            
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '5px';
+            row.style.cursor = 'pointer';
+            row.style.fontSize = '0.8rem';
+            row.title = isOnMap ? "Déjà ici (Cliquer pour sélectionner)" : "Cliquer pour téléporter ici";
+
+            row.innerHTML = `
+                <div style="width:10px; height:10px; border-radius:50%; background:${isOnMap ? '#4caf50' : '#555'}; margin-right:8px; border:1px solid white;"></div>
+                <img src="${entity.avatar}" style="width:20px; height:20px; border-radius:50%; margin-right:5px; opacity:${isOnMap ? 1 : 0.5}">
+                <span style="opacity:${isOnMap ? 1 : 0.5}">${entity.name}</span>
+            `;
+
+            row.onclick = (e) => {
+                e.stopPropagation(); // Ne pas cliquer sur la carte en dessous
+                
+                if (!isOnMap) {
+                    // TÉLÉPORTATION : On change son mapId et on le met au centre
+                    if(confirm(`Déplacer ${entity.name} vers cette carte ?`)) {
+                        entity.mapId = currentMap.id;
+                        entity.x = 50; 
+                        entity.y = 50;
+                        syncGameData(gameData);
+                        render();
+                    }
+                } else {
+                    // SÉLECTION : Si déjà là, on le sélectionne
+                    selectedEntityId = entity.id;
+                    render();
                 }
-            } else {
-                alert("Sélectionnez un pion d'abord !");
-            }
+            };
+            rosterPanel.appendChild(row);
         });
 
-        // Bouton Atlas
+        wrapper.appendChild(rosterPanel);
+
+        // Bouton Atlas (déplacé à gauche pour pas gêner)
         const btnManage = document.createElement('button');
         btnManage.className = 'btn btn-secondary';
         btnManage.innerHTML = '🗺️ Atlas';
@@ -337,27 +371,40 @@ function renderMapModule(container, isEditable) {
         wrapper.appendChild(btnManage);
     }
 
-    wrapper.appendChild(img);
+    // --- LOGIQUE DE DÉPLACEMENT ---
+    if(isEditable) {
+        wrapper.addEventListener('click', (e) => {
+            if(e.target.tagName === 'BUTTON') return;
 
-    // RENDU DES PIONS
+            if (selectedEntityId) {
+                let entity = findEntityById(selectedEntityId);
+                
+                // On ne peut bouger que si l'entité est SUR CETTE CARTE
+                if (entity && entity.mapId === currentMap.id) {
+                    const rect = wrapper.getBoundingClientRect();
+                    const x = ((e.clientX - rect.left) / rect.width) * 100;
+                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    
+                    entity.x = x; 
+                    entity.y = y;
+                    syncGameData(gameData); 
+                    render(); 
+                } else if (entity) {
+                    alert(`${entity.name} n'est pas sur cette carte ! Utilisez le menu à droite pour le faire venir.`);
+                }
+            }
+        });
+    }
+
+    // --- COUCHE 3 : RENDU DES PIONS (FILTRÉ) ---
     [...gameData.players, ...gameData.npcs].forEach(entity => {
-        // --- RECUPERATION POSITION INTELLIGENTE ---
-        let posX = 50; 
-        let posY = 50;
-
-        // Est-ce qu'on a une position enregistrée pour CETTE carte ?
-        if (entity.positions && entity.positions[currentMap.id]) {
-            posX = entity.positions[currentMap.id].x;
-            posY = entity.positions[currentMap.id].y;
-        } else {
-            // Sinon, on met au centre (ou on pourrait cacher le pion)
-            // Pour l'instant on met au centre pour éviter de perdre les pions
-        }
+        // FILTRE CRUCIAL : On n'affiche le pion QUE si son mapId correspond à la carte active
+        if (entity.mapId !== currentMap.id) return;
 
         const p = document.createElement('div');
         p.className = 'pawn';
-        p.style.left = posX + '%';
-        p.style.top = posY + '%';
+        p.style.left = entity.x + '%';
+        p.style.top = entity.y + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
         
         if (selectedEntityId === entity.id) {
