@@ -787,3 +787,18 @@ p { color: #ddd; }
     object-fit: cover;
     background: #eee;
 }
+
+/* --- FIX VISIBILITÉ TITRES MODALES --- */
+.modal-content h2,
+.modal-content h3,
+.modal-content h4,
+#form-title {
+    color: var(--cr-blue-dark) !important; /* Force le bleu foncé */
+    text-shadow: none !important;          /* Enlève l'ombre portée "mode nuit" */
+    
+    /* Petit bonus de style */
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--cr-gold);
+    padding-bottom: 10px;
+    margin-top: 0;
+}
