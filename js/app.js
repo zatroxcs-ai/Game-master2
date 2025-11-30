@@ -1819,29 +1819,31 @@ function renderSystemModule(container) {
     container.appendChild(infoBox);
 }
 
-// --- GESTIONNAIRE DE RESSOURCES (MJ) ---
+// --- GESTIONNAIRE DE RESSOURCES (MJ) - VERSION COMPLÈTE ---
 function openResourceManager() {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
 
+    // On cache le bouton "Sauvegarder" global car chaque action a sa propre logique ici
     saveBtn.style.display = 'none';
     modal.style.display = 'flex';
     document.getElementById('form-title').innerText = 'Types de Ressources';
 
+    // Fonction interne pour afficher la liste
     const renderList = () => {
         container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-res" class="btn btn-primary">+ Nouvelle Ressource</button></div>';
 
-        // Action Créer
+        // 1. ACTION : CRÉER
         container.querySelector('#btn-new-res').onclick = () => {
-            modal.style.display = 'none';
+            modal.style.display = 'none'; // On ferme temporairement pour ouvrir le formulaire
             openFormModal('Nouvelle Ressource', [
                 { name: 'name', label: 'Nom (ex: Mana)', value: '' },
-                { name: 'icon', label: 'Emoji/Icone (ex: 🧿)', value: '🧿' },
-                { name: 'color', label: 'Couleur (Hex ou nom)', value: '#3498db' },
-                { name: 'id', label: 'ID Technique (minuscules, sans espace)', value: 'mana' }
+                { name: 'icon', label: 'Emoji (ex: 🧿)', value: '🧿' },
+                { name: 'color', label: 'Couleur', value: '#3498db' },
+                { name: 'id', label: 'ID Technique (minuscule, sans espace)', value: 'mana' }
             ], (data) => {
-                // On vérifie que l'ID est unique
+                // Vérification doublon
                 if(gameData.resourceTypes.find(r => r.id === data.id)) return alert("Cet ID existe déjà !");
                 
                 gameData.resourceTypes.push({
@@ -1851,10 +1853,12 @@ function openResourceManager() {
                     color: data.color
                 });
                 saveData(`Ajout ressource : ${data.name}`);
+                // On rouvre le gestionnaire après la création
                 setTimeout(openResourceManager, 100);
             });
         };
 
+        // Liste des ressources existantes
         const list = document.createElement('div');
         list.style.maxHeight = '400px'; 
         list.style.overflowY = 'auto';
@@ -1867,22 +1871,42 @@ function openResourceManager() {
             row.style.justifyContent = 'space-between';
             row.style.alignItems = 'center';
             row.style.borderLeft = `5px solid ${res.color}`;
+            row.style.textAlign = 'left';
 
             row.innerHTML = `
                 <div>
                     <span style="font-size:1.5rem; margin-right:10px;">${res.icon}</span>
                     <strong>${res.name}</strong> <small style="color:#888">(${res.id})</small>
                 </div>
-                <div>
-                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px;" id="del-res-${index}">🗑️</button>
+                <div style="display:flex; gap:5px;">
+                    <button class="btn" style="background:orange; font-size:0.7rem; padding:5px 8px;" id="edit-res-${index}" title="Modifier">✏️</button>
+                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px 8px;" id="del-res-${index}" title="Supprimer">🗑️</button>
                 </div>
             `;
 
+            // 2. ACTION : MODIFIER
+            row.querySelector(`#edit-res-${index}`).onclick = () => {
+                modal.style.display = 'none';
+                openFormModal(`Modifier ${res.name}`, [
+                    { name: 'name', label: 'Nom', value: res.name },
+                    { name: 'icon', label: 'Emoji', value: res.icon },
+                    { name: 'color', label: 'Couleur', value: res.color }
+                    // On ne permet pas de modifier l'ID pour ne pas casser les données des joueurs
+                ], (data) => {
+                    res.name = data.name;
+                    res.icon = data.icon;
+                    res.color = data.color;
+                    saveData(`Modif ressource : ${res.name}`);
+                    setTimeout(openResourceManager, 100);
+                });
+            };
+
+            // 3. ACTION : SUPPRIMER
             row.querySelector(`#del-res-${index}`).onclick = () => {
-                if(confirm(`Supprimer la ressource "${res.name}" ?\nCela ne supprimera pas les valeurs stockées sur les joueurs, mais l'affichage disparaîtra.`)) {
+                if(confirm(`Supprimer la ressource "${res.name}" ?\n(L'affichage disparaîtra pour les joueurs)`)) {
                     gameData.resourceTypes.splice(index, 1);
                     saveData();
-                    renderList();
+                    renderList(); // Rafraîchissement immédiat de la liste
                 }
             };
             list.appendChild(row);
@@ -1890,11 +1914,12 @@ function openResourceManager() {
         container.appendChild(list);
     };
 
-    renderList();
+    renderList(); // Premier affichage
 
+    // Gestion fermeture propre
     modal.querySelector('.close-form').onclick = () => {
-        saveBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'inline-block'; // On remet le bouton pour les autres formulaires
         modal.style.display = 'none';
-        render(); // Rafraîchir l'interface globale
+        render(); // On rafraîchit l'interface principale (pour voir les changements sur les joueurs)
     };
 }
