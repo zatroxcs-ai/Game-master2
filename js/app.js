@@ -1819,46 +1819,43 @@ function renderSystemModule(container) {
     container.appendChild(infoBox);
 }
 
-// --- GESTIONNAIRE DE RESSOURCES (MJ) - VERSION COMPLÈTE ---
+// --- GESTIONNAIRE DE RESSOURCES (MJ) - AVEC GESTION DU MAX ---
 function openResourceManager() {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
 
-    // On cache le bouton "Sauvegarder" global car chaque action a sa propre logique ici
     saveBtn.style.display = 'none';
     modal.style.display = 'flex';
     document.getElementById('form-title').innerText = 'Types de Ressources';
 
-    // Fonction interne pour afficher la liste
     const renderList = () => {
         container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-res" class="btn btn-primary">+ Nouvelle Ressource</button></div>';
 
-        // 1. ACTION : CRÉER
+        // 1. CRÉER
         container.querySelector('#btn-new-res').onclick = () => {
-            modal.style.display = 'none'; // On ferme temporairement pour ouvrir le formulaire
+            modal.style.display = 'none';
             openFormModal('Nouvelle Ressource', [
                 { name: 'name', label: 'Nom (ex: Mana)', value: '' },
                 { name: 'icon', label: 'Emoji (ex: 🧿)', value: '🧿' },
                 { name: 'color', label: 'Couleur', value: '#3498db' },
-                { name: 'id', label: 'ID Technique (minuscule, sans espace)', value: 'mana' }
+                { name: 'max', label: 'Maximum autorisé', type: 'number', value: '100' }, // Nouveau champ
+                { name: 'id', label: 'ID Technique (minuscule)', value: 'mana' }
             ], (data) => {
-                // Vérification doublon
                 if(gameData.resourceTypes.find(r => r.id === data.id)) return alert("Cet ID existe déjà !");
                 
                 gameData.resourceTypes.push({
                     id: data.id.toLowerCase().replace(/\s/g, ''),
                     name: data.name,
                     icon: data.icon,
-                    color: data.color
+                    color: data.color,
+                    max: parseInt(data.max) || 999999 // Stockage du max
                 });
                 saveData(`Ajout ressource : ${data.name}`);
-                // On rouvre le gestionnaire après la création
                 setTimeout(openResourceManager, 100);
             });
         };
 
-        // Liste des ressources existantes
         const list = document.createElement('div');
         list.style.maxHeight = '400px'; 
         list.style.overflowY = 'auto';
@@ -1873,40 +1870,44 @@ function openResourceManager() {
             row.style.borderLeft = `5px solid ${res.color}`;
             row.style.textAlign = 'left';
 
+            // Affichage du Max dans la liste pour info
+            const maxDisplay = res.max ? `/ ${res.max}` : '';
+
             row.innerHTML = `
                 <div>
                     <span style="font-size:1.5rem; margin-right:10px;">${res.icon}</span>
-                    <strong>${res.name}</strong> <small style="color:#888">(${res.id})</small>
+                    <strong>${res.name}</strong> <small style="color:#888">(${res.id} ${maxDisplay})</small>
                 </div>
                 <div style="display:flex; gap:5px;">
-                    <button class="btn" style="background:orange; font-size:0.7rem; padding:5px 8px;" id="edit-res-${index}" title="Modifier">✏️</button>
-                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px 8px;" id="del-res-${index}" title="Supprimer">🗑️</button>
+                    <button class="btn" style="background:orange; font-size:0.7rem; padding:5px 8px;" id="edit-res-${index}">✏️</button>
+                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px 8px;" id="del-res-${index}">🗑️</button>
                 </div>
             `;
 
-            // 2. ACTION : MODIFIER
+            // 2. MODIFIER
             row.querySelector(`#edit-res-${index}`).onclick = () => {
                 modal.style.display = 'none';
                 openFormModal(`Modifier ${res.name}`, [
                     { name: 'name', label: 'Nom', value: res.name },
                     { name: 'icon', label: 'Emoji', value: res.icon },
-                    { name: 'color', label: 'Couleur', value: res.color }
-                    // On ne permet pas de modifier l'ID pour ne pas casser les données des joueurs
+                    { name: 'color', label: 'Couleur', value: res.color },
+                    { name: 'max', label: 'Maximum', type: 'number', value: res.max || 999999 } // Edition du max
                 ], (data) => {
                     res.name = data.name;
                     res.icon = data.icon;
                     res.color = data.color;
+                    res.max = parseInt(data.max);
                     saveData(`Modif ressource : ${res.name}`);
                     setTimeout(openResourceManager, 100);
                 });
             };
 
-            // 3. ACTION : SUPPRIMER
+            // 3. SUPPRIMER
             row.querySelector(`#del-res-${index}`).onclick = () => {
-                if(confirm(`Supprimer la ressource "${res.name}" ?\n(L'affichage disparaîtra pour les joueurs)`)) {
+                if(confirm(`Supprimer la ressource "${res.name}" ?`)) {
                     gameData.resourceTypes.splice(index, 1);
                     saveData();
-                    renderList(); // Rafraîchissement immédiat de la liste
+                    renderList();
                 }
             };
             list.appendChild(row);
@@ -1914,12 +1915,11 @@ function openResourceManager() {
         container.appendChild(list);
     };
 
-    renderList(); // Premier affichage
+    renderList();
 
-    // Gestion fermeture propre
     modal.querySelector('.close-form').onclick = () => {
-        saveBtn.style.display = 'inline-block'; // On remet le bouton pour les autres formulaires
+        saveBtn.style.display = 'inline-block';
         modal.style.display = 'none';
-        render(); // On rafraîchit l'interface principale (pour voir les changements sur les joueurs)
+        render(); 
     };
 }
