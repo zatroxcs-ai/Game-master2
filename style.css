@@ -33,6 +33,11 @@ body {
     align-items: center;
 }
 
+/* Sécurité globale : Si un écran n'a pas la classe .active, il DOIT être caché */
+.screen:not(.active) {
+    display: none !important;
+}
+
 /* LAYOUT */
 .screen { display: none; height: 100vh; flex-direction: column; }
 .screen.active { display: flex; }
@@ -338,16 +343,25 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 
 /* --- REFONTE MOBILE (APP STYLE) --- */
 
-/* 1. Conteneur Principal : Fixe la hauteur pour éviter le scroll de page global */
+/* 1. Conteneur Principal JOUEUR */
 #player-screen {
-    background-color: #1c2e4a; /* Fond bleu nuit CR */
-    background-image: radial-gradient(#2a4b70 2px, transparent 2px); /* Texture petits points */
+    /* Style visuel (toujours appliqué) */
+    background-color: #1c2e4a;
+    background-image: radial-gradient(#2a4b70 2px, transparent 2px);
     background-size: 20px 20px;
-    height: 100vh; /* Fallback */
-    height: 100dvh; /* Dynamic Viewport Height (Fixe le bug Safari mobile) */
-    display: flex;
+    
+    /* IMPORTANT : Caché par défaut ! */
+    display: none; 
+}
+
+/* 2. Quand l'écran Joueur est ACTIF */
+#player-screen.active {
+    /* C'est ICI qu'on l'affiche */
+    display: flex; 
     flex-direction: column;
-    overflow: hidden; /* Empêche le rebond élastique de Safari */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
 /* 2. Zone de Contenu (Scrollable) */
