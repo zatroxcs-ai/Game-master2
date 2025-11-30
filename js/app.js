@@ -550,7 +550,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS (VERSION AVEC MAX LIMITS & INPUTS LARGES)
+// 2. PLAYERS (CORRECTION LARGEUR INPUTS)
 function renderPlayersModule(container) {
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
@@ -592,7 +592,6 @@ function renderPlayersModule(container) {
             resourcesHtml = '<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px;">';
             gameData.resourceTypes.forEach(res => {
                 const val = (char[res.id] !== undefined && char[res.id] !== null) ? char[res.id] : 0;
-                // Valeur Max (défaut très haut si pas définie)
                 const maxVal = res.max || 9999999;
                 
                 resourcesHtml += `
@@ -602,7 +601,7 @@ function renderPlayersModule(container) {
                             data-id="${char.id}" 
                             data-type="${res.id}" 
                             data-max="${maxVal}"
-                            style="width:80px; padding:2px; border:1px solid #ccc;" 
+                            style="width:100px; padding:2px; border:1px solid #ccc;" 
                             value="${val}" 
                             max="${maxVal}" 
                             min="0">
@@ -636,11 +635,10 @@ function renderPlayersModule(container) {
                 const pid = e.target.dataset.id;
                 const max = parseInt(e.target.dataset.max);
 
-                // Vérification de la limite MAX
                 if (val > max) {
                     val = max;
-                    e.target.value = max; // On remet visuellement le max
-                    alert(`Maximum atteint pour cette ressource (${max})`);
+                    e.target.value = max;
+                    alert(`Maximum atteint (${max})`);
                 }
                 if (val < 0) {
                     val = 0;
@@ -652,7 +650,6 @@ function renderPlayersModule(container) {
             };
         });
 
-        // Boutons actions
         row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
