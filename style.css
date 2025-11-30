@@ -64,11 +64,60 @@ body {
 #login-screen h1 { color: var(--cr-gold); text-shadow: 0 2px 0 #000; font-size: 2.5rem; margin-bottom: 20px;}
 
 /* HEADER MJ */
-#dm-screen header {
-    background: var(--cr-blue); color: white; padding: 10px;
-    display: flex; justify-content: space-between; align-items: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+/* --- FIX INTERFACE MJ (CADRE PROPRE) --- */
+
+/* 1. Structure de l'écran MJ */
+#dm-screen {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* On laisse la texture du body visible sur les côtés */
 }
+
+/* 2. Le Header (Menu du haut) */
+#dm-screen header {
+    background: rgba(52, 94, 140, 0.95); /* Bleu roi un peu transparent */
+    backdrop-filter: blur(5px); /* Effet flou derrière */
+    border-bottom: 4px solid var(--cr-gold);
+    flex-shrink: 0;
+    z-index: 100;
+}
+
+/* 3. La Zone de Contenu (La "Feuille") */
+#dm-content {
+    flex: 1; /* Prend toute la hauteur restante */
+    overflow-y: auto; /* Le scroll se fait ICI */
+    
+    /* Le cadre blanc semi-transparent */
+    background: rgba(245, 245, 245, 0.9); 
+    margin: 20px auto; /* Centré avec des marges */
+    max-width: 1200px; /* Pas trop large sur les écrans géants */
+    width: 95%;
+    
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Belle ombre noire pour détacher du fond */
+    
+    /* IMPORTANT : On force le texte en NOIR à l'intérieur car le fond est CLAIR */
+    color: #333; 
+}
+
+/* 4. Correction des Titres dans la zone MJ */
+#dm-content h2, 
+#dm-content h3 {
+    color: var(--cr-blue-dark); /* Bleu foncé lisible */
+    text-shadow: none; /* On enlève l'ombre "mode nuit" */
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 10px;
+}
+
+/* 5. Correction spécifique pour la Map */
+/* On veut que la carte puisse prendre toute la largeur sans marges blanches gênantes */
+#dm-content .map-container {
+    border: 4px solid #333;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
 #dm-nav button {
     background: transparent; border: none; color: rgba(255,255,255,0.7);
     font-weight: bold; cursor: pointer; padding: 5px 10px;
