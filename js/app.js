@@ -211,8 +211,8 @@ function renderDM() {
     // 1. INITIALISATION DES TYPES DE RESSOURCES (Si inexistant)
     if (!gameData.resourceTypes) {
         gameData.resourceTypes = [
-            { id: 'gold', name: 'Or', icon: '💰', color: '#ffbd2e' },
-            { id: 'elixir', name: 'Élixir', icon: '💧', color: '#d6308e' }
+            { id: 'gold', name: 'Or', icon: '💰', color: '#ffbd2e', max: 999999 },
+            { id: 'elixir', name: 'Élixir', icon: '💧', color: '#d6308e', max: 99 }
         ];
         // On sauvegarde silencieusement pour appliquer la structure
         syncGameData(gameData);
