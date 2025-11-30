@@ -1325,62 +1325,46 @@ function cycleRelation(sId, tId, currentStatus) {
     // Note: render() est appelé automatiquement par saveData(), donc l'affichage se mettra à jour
 }
 
-// 6. QUÊTES (VERSION AMÉLIORÉE)
+// 6. QUÊTES (MULTI-JOUEURS)
 function renderQuestsModule(container) {
-    // Bouton de création centré
     container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-quest" class="btn btn-secondary" style="width:100%">+ Nouvelle Quête</button></div>';
 
-    // LOGIQUE DE CRÉATION
+    // Appel de notre nouvelle modale
     document.getElementById('btn-new-quest').onclick = () => {
-        // 1. Préparer la liste des PNJ (Commanditaires)
-        let npcOptions = [{value: 'board', label: '📢 Panneau d\'affichage (Aucun)'}];
-        gameData.npcs.forEach(n => {
-            npcOptions.push({ value: n.id, label: `👤 ${n.name}` });
-        });
-
-        // 2. Préparer la liste des Joueurs (Cibles)
-        let playerOptions = [];
-        gameData.players.forEach(p => {
-            playerOptions.push({ value: p.id, label: `🎮 ${p.name}` });
-        });
-
-        if(playerOptions.length === 0) return alert("Il faut créer des joueurs avant de donner des quêtes !");
-
-        // 3. Ouvrir la modale
-        openFormModal('Nouvelle Quête', [
-            { name: 'title', label: 'Titre de la quête', value: '' },
-            { name: 'desc', label: 'Description / Instructions', type: 'textarea', value: '' },
-            { name: 'reward', label: 'Récompense (ex: 500 Or)', value: '100 Or' },
-            { name: 'giver', label: 'Commanditaire (PNJ)', type: 'select', options: npcOptions, value: 'board' },
-            { name: 'assigned', label: 'Assigner au joueur', type: 'select', options: playerOptions, value: playerOptions[0].value }
-        ], (data) => {
+        if(gameData.players.length === 0) return alert("Créez d'abord des joueurs !");
+        
+        openQuestModal((data) => {
             gameData.quests.push({
                 id: generateId(),
                 title: data.title,
                 desc: data.desc,
                 reward: data.reward,
-                giverId: data.giver,
-                assignedTo: data.assigned,
+                giverId: data.giverId,
+                assignedTo: data.assignedTo, // C'est maintenant un tableau [id1, id2]
                 status: 'active'
             });
             saveData(`Nouvelle quête : ${data.title}`);
         });
     };
 
-    // LISTE DES QUÊTES
     const list = document.createElement('div');
     
     if (gameData.quests.length === 0) {
         list.innerHTML = '<p style="opacity:0.5; text-align:center">Aucune quête active.</p>';
     } else {
         gameData.quests.forEach((q, index) => {
-            // Trouver les infos
-            const assignedP = gameData.players.find(p => p.id === q.assignedTo);
-            const pName = assignedP ? assignedP.name : 'Inconnu';
-            
-            // Trouver l'image du commanditaire
-            let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png'; // Image par défaut (Panneau)
-            if (q.giverId !== 'board') {
+            // Gestion rétro-compatibilité (si c'est une vieille quête avec un seul ID string)
+            const assignedIds = Array.isArray(q.assignedTo) ? q.assignedTo : [q.assignedTo];
+
+            // On construit la liste des noms
+            const names = assignedIds.map(id => {
+                const p = gameData.players.find(x => x.id === id);
+                return p ? p.name : 'Inconnu';
+            }).join(', ');
+
+            // Image Commanditaire
+            let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
+            if (q.giverId && q.giverId !== 'board') {
                 const npc = gameData.npcs.find(n => n.id === q.giverId);
                 if (npc) giverImg = npc.avatar;
             }
@@ -1388,25 +1372,32 @@ function renderQuestsModule(container) {
             const card = document.createElement('div');
             card.className = 'quest-card';
             card.innerHTML = `
-                <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+                <img src="${giverImg}" class="quest-giver" onerror="this.src='https://placehold.co/60'">
                 <div class="quest-info">
                     <div style="float:right">
-                         <button class="btn" style="background:red; font-size:0.7rem; padding:4px 8px;" onclick="deleteQuest(${index})">X</button>
+                         <button class="btn" style="background:red; font-size:0.7rem; padding:4px 8px;" onclick="window.deleteQuest(${index})">X</button>
                     </div>
                     <h4 class="quest-title">${q.title}</h4>
-                    <p class="quest-desc">${q.desc || 'Aucune description.'}</p>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
-                        <span class="quest-reward">🎁 ${q.reward}</span>
-                        <small style="color:var(--cr-blue); font-weight:bold">Pour : ${pName}</small>
+                    <p class="quest-desc">${q.desc || ''}</p>
+                    <div style="display:flex; flex-direction:column; margin-top:5px; gap:5px;">
+                        <span class="quest-reward" style="align-self:flex-start">🎁 ${q.reward}</span>
+                        <small style="color:var(--cr-blue); font-weight:bold">👥 Pour : ${names}</small>
                     </div>
                 </div>
             `;
             list.appendChild(card);
         });
     }
-    
     container.appendChild(list);
 }
+
+// Fonction de suppression (Doit être en dehors)
+window.deleteQuest = (index) => {
+    if(confirm('Supprimer cette quête ?')) {
+        gameData.quests.splice(index, 1);
+        saveData();
+    }
+};
 
 // Fonction de suppression globale
 window.deleteQuest = (index) => {
@@ -1416,24 +1407,30 @@ window.deleteQuest = (index) => {
     }
 };
 
+// QUÊTES JOUEUR (COMPATIBLE MULTI)
 function renderPlayerQuests(container, player) {
-    const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
+    // Filtre : Est-ce que mon ID est dans le tableau 'assignedTo' ?
+    const myQuests = gameData.quests.filter(q => {
+        if (Array.isArray(q.assignedTo)) {
+            return q.assignedTo.includes(player.id);
+        }
+        // Rétro-compatibilité vieilles quêtes
+        return q.assignedTo === player.id;
+    });
     
     container.innerHTML = '<h2>Mes Quêtes</h2>';
     
     if (myQuests.length === 0) {
         container.innerHTML += `
             <div style="text-align:center; opacity:0.6; margin-top:40px;">
-                <img src="https://cdn-icons-png.flaticon.com/512/7486/7486747.png" width="64"><br>
-                <p>Aucune mission pour le moment.<br>Profite de la taverne !</p>
+                <p>Aucune mission pour le moment.</p>
             </div>`;
         return;
     }
 
     myQuests.forEach(q => {
-        // Trouver l'image du commanditaire
         let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
-        let giverName = 'Panneau d\'affichage';
+        let giverName = 'Panneau';
         
         if (q.giverId && q.giverId !== 'board') {
             const npc = gameData.npcs.find(n => n.id === q.giverId);
@@ -1445,13 +1442,12 @@ function renderPlayerQuests(container, player) {
 
         const card = document.createElement('div');
         card.className = 'quest-card';
-        // Bordure bleue pour le joueur pour différencier
         card.style.borderLeftColor = 'var(--cr-blue)'; 
         
         card.innerHTML = `
-            <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+            <img src="${giverImg}" class="quest-giver" onerror="this.src='https://placehold.co/60'">
             <div class="quest-info">
-                <small style="text-transform:uppercase; font-size:0.6rem; color:#888;">Commanditaire : ${giverName}</small>
+                <small style="text-transform:uppercase; font-size:0.6rem; color:#888;">${giverName}</small>
                 <h4 class="quest-title">${q.title}</h4>
                 <p class="quest-desc">${q.desc || ''}</p>
                 <span class="quest-reward">💰 ${q.reward}</span>
@@ -2211,3 +2207,104 @@ window.addEventListener('focus', () => {
         }));
     }
 });
+
+// --- MODALE SPÉCIALE QUÊTE (MULTI-JOUEURS) ---
+function openQuestModal(onSave) {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    // Reset UI
+    saveBtn.style.display = 'inline-block';
+    saveBtn.innerText = 'Publier la Quête';
+    document.getElementById('form-title').innerText = 'Nouvelle Quête de Groupe';
+    container.innerHTML = '';
+
+    // 1. TITRE & RÉCOMPENSE
+    container.innerHTML += `
+        <div style="display:flex; gap:10px;">
+            <div class="form-group" style="flex:1">
+                <label>Titre</label>
+                <input type="text" id="q-title" placeholder="Ex: Chasser les rats">
+            </div>
+            <div class="form-group" style="flex:1">
+                <label>Récompense</label>
+                <input type="text" id="q-reward" placeholder="Ex: 500 Or">
+            </div>
+        </div>
+    `;
+
+    // 2. COMMANDITAIRE (Select)
+    let npcOptions = '<option value="board">📢 Panneau d\'affichage</option>';
+    gameData.npcs.forEach(n => {
+        npcOptions += `<option value="${n.id}">👤 ${n.name}</option>`;
+    });
+    
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Commanditaire</label>
+            <select id="q-giver" style="width:100%; padding:10px;">${npcOptions}</select>
+        </div>
+    `;
+
+    // 3. DESCRIPTION
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Instructions</label>
+            <textarea id="q-desc" rows="3"></textarea>
+        </div>
+    `;
+
+    // 4. ASSIGNATION (CHECKBOXES)
+    let checksHtml = '<div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:5px;">';
+    
+    // Bouton "Tous" pour aller plus vite
+    checksHtml += `
+        <label class="checkbox-item" style="background:#ddd; font-weight:bold">
+            <input type="checkbox" onchange="document.querySelectorAll('.q-player-check').forEach(c => c.checked = this.checked)"> Tout le monde
+        </label>
+    `;
+
+    gameData.players.forEach(p => {
+        checksHtml += `
+            <label class="checkbox-item" style="background:#e3f2fd;">
+                <input type="checkbox" class="q-player-check" value="${p.id}" checked>
+                ${p.name}
+            </label>
+        `;
+    });
+    checksHtml += '</div>';
+
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Assigner aux aventuriers :</label>
+            ${checksHtml}
+        </div>
+    `;
+
+    // Affichage
+    modal.style.display = 'flex';
+    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
+
+    // Sauvegarde
+    saveBtn.onclick = null;
+    saveBtn.onclick = () => {
+        const title = document.getElementById('q-title').value;
+        const reward = document.getElementById('q-reward').value;
+        const desc = document.getElementById('q-desc').value;
+        const giverId = document.getElementById('q-giver').value;
+        
+        // Récupérer tous les IDs cochés
+        const assignedTo = [];
+        document.querySelectorAll('.q-player-check:checked').forEach(box => {
+            assignedTo.push(box.value);
+        });
+
+        if (title && assignedTo.length > 0) {
+            onSave({ title, reward, desc, giverId, assignedTo });
+            modal.style.display = 'none';
+        } else {
+            alert("Il faut un titre et au moins un joueur !");
+        }
+    };
+}
