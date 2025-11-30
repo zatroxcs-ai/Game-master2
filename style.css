@@ -910,3 +910,28 @@ p { color: #ddd; }
     padding-bottom: 10px;
     margin-top: 0;
 }
+
+/* --- FIX CROIX DE FERMETURE (ROUGE) --- */
+.close-modal, 
+.close-form {
+    color: #dc3545 !important; /* Rouge vif */
+    opacity: 1 !important;     /* On enlève la transparence */
+    font-weight: bold;
+    font-size: 2rem;           /* Un peu plus gros */
+    line-height: 1;
+    transition: transform 0.2s, color 0.2s;
+    cursor: pointer;
+    
+    /* Positionnement de sécurité si pas déjà défini */
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    z-index: 1001; /* Par-dessus tout */
+}
+
+/* Effet au survol de la souris */
+.close-modal:hover, 
+.close-form:hover {
+    color: #a71d2a !important; /* Rouge plus foncé */
+    transform: scale(1.2);     /* Petit zoom */
+}
