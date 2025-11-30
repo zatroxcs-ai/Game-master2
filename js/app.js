@@ -1,6 +1,134 @@
 import { initialGameData, generateId, formatTime } from './data.js';
 import { joinSession, createSession, syncGameData } from './cloud.js';
 
+// --- CONFIGURATION DES ASSETS ---
+const LOCAL_ASSETS = [
+    // --- TES IMAGES PERSO (Ne pas effacer) ---
+    './assets/map.png',
+    './assets/enfers.png',
+
+    // --- COMMUNES (COMMONS) ---
+    './assets/cards/arrows.png',
+    './assets/cards/bomber.png',
+    './assets/cards/archers.png',
+    './assets/cards/knight.png',
+    './assets/cards/goblins.png',
+    './assets/cards/spear-goblins.png',
+    './assets/cards/skeletons.png',
+    './assets/cards/minions.png',
+    './assets/cards/cannon.png',
+    './assets/cards/barbarians.png',
+    './assets/cards/tesla.png',
+    './assets/cards/minion-horde.png',
+    './assets/cards/zap.png',
+    './assets/cards/mortar.png',
+    './assets/cards/fire-spirit.png',
+    './assets/cards/ice-spirit.png',
+    './assets/cards/bats.png',
+    './assets/cards/goblin-gang.png',
+    './assets/cards/skeleton-barrel.png',
+    './assets/cards/snowball.png',
+    './assets/cards/rascals.png',
+    './assets/cards/royal-giant.png',
+    './assets/cards/elite-barbarians.png',
+    './assets/cards/royal-recruits.png',
+    './assets/cards/electro-spirit.png',
+    './assets/cards/firecracker.png',
+    './assets/cards/royal-delivery.png',
+    './assets/cards/skeleton-dragons.png',
+    './assets/cards/goblin-giant.png', // Parfois Rare/Epic selon versions, check fichier
+
+    // --- RARES ---
+    './assets/cards/fireball.png',
+    './assets/cards/mini-pekka.png',
+    './assets/cards/musketeer.png',
+    './assets/cards/giant.png',
+    './assets/cards/goblin-hut.png',
+    './assets/cards/valkyrie.png',
+    './assets/cards/tombstone.png',
+    './assets/cards/bomb-tower.png',
+    './assets/cards/rocket.png',
+    './assets/cards/barbarian-hut.png',
+    './assets/cards/hog-rider.png',
+    './assets/cards/inferno-tower.png',
+    './assets/cards/wizard.png',
+    './assets/cards/elixir-collector.png',
+    './assets/cards/mega-minion.png',
+    './assets/cards/ice-golem.png',
+    './assets/cards/dart-goblin.png',
+    './assets/cards/battle-ram.png',
+    './assets/cards/flying-machine.png',
+    './assets/cards/zappies.png',
+    './assets/cards/royal-hogs.png',
+    './assets/cards/earthquake.png',
+    './assets/cards/elixir-golem.png',
+    './assets/cards/battle-healer.png',
+    './assets/cards/goblin-cage.png',
+    './assets/cards/heal-spirit.png',
+    './assets/cards/three-musketeers.png',
+
+    // --- ÉPIQUES (EPICS) ---
+    './assets/cards/prince.png',
+    './assets/cards/baby-dragon.png',
+    './assets/cards/skeleton-army.png',
+    './assets/cards/witch.png',
+    './assets/cards/lightning.png',
+    './assets/cards/goblin-barrel.png',
+    './assets/cards/giant-skeleton.png',
+    './assets/cards/balloon.png',
+    './assets/cards/fury.png', // Ou rage.png selon le pack
+    './assets/cards/rage.png',
+    './assets/cards/x-bow.png',
+    './assets/cards/freeze.png',
+    './assets/cards/pekka.png',
+    './assets/cards/poison.png',
+    './assets/cards/mirror.png',
+    './assets/cards/golem.png',
+    './assets/cards/the-log.png', // Souvent log.png ou the-log.png
+    './assets/cards/tornado.png',
+    './assets/cards/clone.png',
+    './assets/cards/dark-prince.png',
+    './assets/cards/guards.png',
+    './assets/cards/hunter.png',
+    './assets/cards/executioner.png',
+    './assets/cards/cannon-cart.png',
+    './assets/cards/electro-dragon.png',
+    './assets/cards/wall-breakers.png',
+    './assets/cards/goblin-drill.png',
+    './assets/cards/electro-giant.png',
+    './assets/cards/barbarian-barrel.png',
+    './assets/cards/bowler.png',
+    './assets/cards/void.png',
+
+    // --- LÉGENDAIRES (LEGENDARIES) ---
+    './assets/cards/ice-wizard.png',
+    './assets/cards/princess.png',
+    './assets/cards/miner.png',
+    './assets/cards/sparky.png',
+    './assets/cards/lava-hound.png',
+    './assets/cards/electro-wizard.png',
+    './assets/cards/inferno-dragon.png',
+    './assets/cards/lumberjack.png',
+    './assets/cards/graveyard.png',
+    './assets/cards/bandit.png',
+    './assets/cards/night-witch.png',
+    './assets/cards/magic-archer.png',
+    './assets/cards/mother-witch.png',
+    './assets/cards/royal-ghost.png',
+    './assets/cards/fisherman.png',
+    './assets/cards/mega-knight.png',
+    './assets/cards/ram-rider.png',
+    './assets/cards/phoenix.png',
+
+    // --- CHAMPIONS ---
+    './assets/cards/golden-knight.png',
+    './assets/cards/skeleton-king.png',
+    './assets/cards/archer-queen.png',
+    './assets/cards/mighty-miner.png',
+    './assets/cards/monk.png',
+    './assets/cards/little-prince.png'
+];
+
 // --- STATE LOCAL ---
 let gameData = JSON.parse(JSON.stringify(initialGameData));
 let currentUser = { role: 'guest', id: null };
@@ -136,58 +264,106 @@ function switchTab(tabName, role) {
     render();
 }
 
-// --- SYSTEME DE MODALE DYNAMIQUE (FIXED) ---
+// --- SYSTÈME DE MODALE (AVEC SÉLECTEUR D'IMAGES) ---
 function openFormModal(title, fields, onSave) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
 
-    // FIX: Toujours réafficher le bouton par défaut
     saveBtn.style.display = 'inline-block';
     saveBtn.innerText = 'Sauvegarder';
-    
     document.getElementById('form-title').innerText = title;
     container.innerHTML = '';
 
     fields.forEach(f => {
         const div = document.createElement('div');
         div.className = 'form-group';
-        
-        const label = document.createElement('label');
-        label.innerText = f.label;
-        div.appendChild(label);
+        div.innerHTML = `<label>${f.label}</label>`;
 
-        let input;
+        // 1. MENU DÉROULANT (SELECT)
         if (f.type === 'select') {
-            input = document.createElement('select');
+            const input = document.createElement('select');
+            input.id = `field-${f.name}`;
             f.options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt.value;
-                option.innerText = opt.label;
-                if(opt.value === f.value) option.selected = true;
-                input.appendChild(option);
+                const o = document.createElement('option');
+                o.value = opt.value;
+                o.innerText = opt.label;
+                if(opt.value === f.value) o.selected = true;
+                input.appendChild(o);
             });
+            div.appendChild(input);
+        
+        // 2. TEXTE LONG (TEXTAREA)
         } else if (f.type === 'textarea') {
-            input = document.createElement('textarea');
+            const input = document.createElement('textarea');
+            input.id = `field-${f.name}`;
             input.rows = 3;
-            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
+            input.value = (f.value != null) ? f.value : '';
+            div.appendChild(input);
+
+        // 3. IMAGE (Détection automatique par nom ou type explicite)
+        } else if (f.type === 'image' || ['avatar', 'url', 'img', 'image'].includes(f.name)) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'img-input-row';
+
+            // Miniature de prévisualisation
+            const thumb = document.createElement('img');
+            thumb.className = 'img-preview-thumb';
+            thumb.src = f.value || 'https://placehold.co/40';
+            thumb.onerror = function(){ this.src='https://placehold.co/40?text=?'; };
+
+            // Champ texte (pour voir l'URL ou coller un lien internet)
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `field-${f.name}`;
+            input.value = (f.value != null) ? f.value : '';
+            input.placeholder = "./assets/... ou https://...";
+            input.style.flex = "1";
+            
+            // Mise à jour de la miniature quand on tape à la main
+            input.oninput = () => thumb.src = input.value;
+
+            // Bouton "Choisir"
+            const btnPick = document.createElement('button');
+            btnPick.className = 'btn btn-secondary';
+            btnPick.style.padding = '5px 10px';
+            btnPick.style.fontSize = '0.8rem';
+            btnPick.innerText = '📂';
+            btnPick.title = "Choisir dans la galerie";
+            
+            // Ouvrir la galerie au clic
+            btnPick.onclick = (e) => {
+                e.preventDefault(); // Ne pas fermer le formulaire
+                openAssetPicker((selectedUrl) => {
+                    input.value = selectedUrl;
+                    thumb.src = selectedUrl;
+                });
+            };
+
+            wrapper.appendChild(thumb);
+            wrapper.appendChild(input);
+            wrapper.appendChild(btnPick);
+            div.appendChild(wrapper);
+
+        // 4. TEXTE / NOMBRE STANDARD
         } else {
-            input = document.createElement('input');
+            const input = document.createElement('input');
+            input.id = `field-${f.name}`;
             input.type = f.type || 'text';
-            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
+            input.value = (f.value != null) ? f.value : '';
+            div.appendChild(input);
         }
         
-        input.id = `field-${f.name}`;
-        div.appendChild(input);
         container.appendChild(div);
     });
 
     currentFormCallback = onSave;
     modal.style.display = 'flex';
-
+    
+    // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
     
-    // Nettoyage et assignation event
+    // Gestion sauvegarde
     saveBtn.onclick = null;
     saveBtn.onclick = () => {
         const result = {};
@@ -198,6 +374,40 @@ function openFormModal(title, fields, onSave) {
         currentFormCallback(result);
         modal.style.display = 'none';
     };
+}
+
+// --- FONCTION DE LA GALERIE D'IMAGES ---
+function openAssetPicker(onSelect) {
+    const modal = document.getElementById('asset-picker');
+    const grid = document.getElementById('asset-grid');
+    grid.innerHTML = ''; // Nettoyer
+
+    // Vérifier si la liste est vide
+    if (!LOCAL_ASSETS || LOCAL_ASSETS.length === 0) {
+        grid.innerHTML = '<p style="padding:10px; color:#666;">Aucune image configurée dans LOCAL_ASSETS (js/app.js).</p>';
+    }
+
+    // Remplir la grille avec la liste définie en haut du fichier
+    LOCAL_ASSETS.forEach(url => {
+        const item = document.createElement('div');
+        item.className = 'asset-item';
+        
+        // On récupère juste le nom du fichier pour l'afficher proprement
+        const cleanName = url.split('/').pop(); 
+        
+        item.innerHTML = `
+            <img src="${url}" onerror="this.src='https://placehold.co/50?text=Err'">
+            <div class="asset-name">${cleanName}</div>
+        `;
+        
+        item.onclick = () => {
+            onSelect(url); // Renvoie l'URL au formulaire
+            modal.style.display = 'none'; // Ferme la galerie
+        };
+        grid.appendChild(item);
+    });
+
+    modal.style.display = 'flex';
 }
 
 // --- RENDERING ENGINE ---
