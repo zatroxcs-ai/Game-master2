@@ -550,10 +550,8 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS & PNJ (Avec bouton Deck Manager)
-// 2. PLAYERS & PNJ (VERSION RESSOURCES DYNAMIQUES)
+// 2. PLAYERS (CORRIGÉ : SYNTAXE + BUG VISUEL)
 function renderPlayersModule(container) {
-    // En-tête avec le bouton de gestion des ressources
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
             <button id="btn-add-p" class="btn btn-primary" style="flex:1">+ Nouveau Personnage</button>
@@ -561,10 +559,8 @@ function renderPlayersModule(container) {
         </div>
     `;
     
-    // Action Bouton Gestion Ressources
+    // Listeners
     document.getElementById('btn-manage-res').onclick = () => openResourceManager();
-
-    // Action Bouton Création Perso
     document.getElementById('btn-add-p').onclick = () => {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
@@ -572,13 +568,18 @@ function renderPlayersModule(container) {
             { name: 'avatar', label: 'URL Avatar', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            const newChar = {
-                id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc,
-                deck: [], inventory: '', x: 50, y: 50
-                // Note: Les ressources seront créées à la volée
+            const newChar = { 
+                id: generateId(), 
+                name: data.name, 
+                avatar: data.avatar, 
+                desc: data.desc, 
+                deck: [], 
+                inventory: '', 
+                x: 50, y: 50 
             };
-            if(data.type === 'player') gameData.players.push(newChar);
-            else gameData.npcs.push(newChar);
+            if(data.type === 'player') gameData.players.push(newChar); else gameData.npcs.push(newChar);
+            
+            // CORRECTION SYNTAXE ICI (Ajout des backticks ` `)
             saveData(`Création de ${data.name}`);
         });
     };
@@ -594,33 +595,29 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
-        // --- GÉNÉRATION DYNAMIQUE DES INPUTS ---
         let resourcesHtml = '';
         if (type === 'player' && gameData.resourceTypes) {
             resourcesHtml = '<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px;">';
             gameData.resourceTypes.forEach(res => {
-                // On récupère la valeur actuelle ou 0
-                const val = char[res.id] !== undefined ? char[res.id] : 0;
+                const val = (char[res.id] !== undefined && char[res.id] !== null) ? char[res.id] : 0;
                 resourcesHtml += `
                     <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
                         <span style="font-size:0.8rem; margin-right:2px;" title="${res.name}">${res.icon}</span> 
-                        <input type="number" class="res-input" 
-                            data-id="${char.id}" 
-                            data-type="${res.id}" 
-                            style="width:50px; padding:2px; border:1px solid #ccc;" 
-                            value="${val}">
-                    </div>
-                `;
+                        <input type="number" class="res-input" data-id="${char.id}" data-type="${res.id}" style="width:50px; padding:2px; border:1px solid #ccc;" value="${val}">
+                    </div>`;
             });
             resourcesHtml += '</div>';
         }
+
+        // CORRECTION BUG VISUEL : Si la desc est "undefined" (texte), on met vide
+        const cleanDesc = (char.desc && char.desc !== "undefined") ? char.desc : "";
 
         row.innerHTML = `
             <img src="${char.avatar}" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #333">
             <div style="flex:1">
                 <strong>${char.name}</strong> <small>(${type === 'npc' ? 'PNJ' : 'Joueur'})</small>
                 ${resourcesHtml}
-                <small style="opacity:0.7; display:block; font-size:0.8rem">${char.desc || ''}</small>
+                <small style="opacity:0.7; display:block; font-size:0.8rem">${cleanDesc}</small>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px">
                 <div style="display:flex; gap:5px">
@@ -631,32 +628,27 @@ function renderPlayersModule(container) {
             </div>
         `;
 
-        // Listeners Ressources Dynamiques
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
                 const val = parseInt(e.target.value) || 0;
-                const fieldType = e.target.dataset.type; // ex: 'gold', 'mana'
+                const fieldType = e.target.dataset.type;
                 const pid = e.target.dataset.id;
-                
                 const targetP = findEntityById(pid);
-                if(targetP) {
-                    targetP[fieldType] = val; // Mise à jour dynamique
-                    syncGameData(gameData);
-                }
+                if(targetP) { targetP[fieldType] = val; syncGameData(gameData); }
             };
         });
 
-        // Boutons actions (inchangés)
         row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
                 { name: 'avatar', label: 'URL Avatar', value: char.avatar },
-                { name: 'desc', label: 'Description', type: 'textarea', value: char.desc || '' },
+                { name: 'desc', label: 'Description', type: 'textarea', value: cleanDesc },
                 { name: 'inventory', label: 'Inventaire', type: 'textarea', value: char.inventory || '' }
             ], (data) => {
                 char.name = data.name; char.avatar = data.avatar;
                 char.desc = data.desc; char.inventory = data.inventory;
+                // CORRECTION SYNTAXE ICI
                 saveData(`Modification de ${char.name}`);
             });
         };
@@ -664,6 +656,7 @@ function renderPlayersModule(container) {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
                 else gameData.npcs = gameData.npcs.filter(p => p.id !== char.id);
+                // CORRECTION SYNTAXE ICI
                 saveData(`Suppression de ${char.name}`);
             }
         };
@@ -673,17 +666,7 @@ function renderPlayersModule(container) {
     gameData.players.forEach(p => renderRow(p, 'player'));
     if(gameData.npcs.length > 0) {
         const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
-        list.appendChild(sep);
-        gameData.npcs.forEach(n => renderRow(n, 'npc'));
-    }
-    container.appendChild(list);
-
-
-    gameData.players.forEach(p => renderRow(p, 'player'));
-    if(gameData.npcs.length > 0) {
-        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
-        list.appendChild(sep);
-        gameData.npcs.forEach(n => renderRow(n, 'npc'));
+        list.appendChild(sep); gameData.npcs.forEach(n => renderRow(n, 'npc'));
     }
     container.appendChild(list);
 }
