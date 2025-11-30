@@ -10,7 +10,28 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Roboto', sans-serif; background-color: var(--cr-bg); overflow: hidden; }
+body {
+    font-family: 'Clash Font', 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    
+    /* --- NOUVEAU FOND --- */
+    /* On charge l'image de texture */
+    background-image: url('./assets/ui-tex-2.png');
+    /* On la fait se répéter horizontalement et verticalement */
+    background-repeat: repeat;
+    /* Le fond reste fixe quand on scrolle (donne un effet plus solide) */
+    background-attachment: fixed;
+    /* Couleur de fond de secours si l'image ne charge pas */
+    background-color: var(--cr-blue-dark);
+    
+    color: white;
+    overflow: hidden; /* Empêche le scroll global */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
 /* LAYOUT */
 .screen { display: none; height: 100vh; flex-direction: column; }
