@@ -1394,77 +1394,55 @@ function openJournalModal(title, initialData, onSave) {
     };
 }
 
-// MODULE JOUEUR: PROFIL & STATS (INVENTAIRE VERROUILLÉ)
-// MODULE JOUEUR: PROFIL (RESSOURCES DYNAMIQUES)
 function renderPlayerStats(container, p) {
-    // Génération dynamique des pilules
+    // 1. En-tête Profil
     let pillsHtml = '';
     if (gameData.resourceTypes) {
         gameData.resourceTypes.forEach(res => {
             const val = p[res.id] !== undefined ? p[res.id] : 0;
-            // Calcul d'une couleur plus claire pour le texte
-            pillsHtml += `
-                <div class="res-pill">
-                    <div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div>
-                    <span style="color:${res.color}; filter:brightness(1.5)">${val}</span>
-                </div>
-            `;
+            pillsHtml += `<div class="res-pill"><div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div><span style="color:${res.color}; filter:brightness(1.5)">${val}</span></div>`;
         });
     }
-
-    const header = document.createElement('div');
+    
+    const header = document.createElement('div'); 
     header.className = 'profile-header';
-    header.innerHTML = `
-        <img src="${p.avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/147/147144.png'">
-        <div class="profile-name">${p.name}</div>
-        <div class="resource-row" style="flex-wrap:wrap">
-            ${pillsHtml}
-        </div>
-        <div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">
-            ${p.desc || 'Un héros sans histoire...'}
-        </div>
-    `;
+    header.innerHTML = `<img src="${p.avatar}" class="profile-avatar" onerror="this.src='https://placehold.co/80'"><div class="profile-name">${p.name}</div><div class="resource-row" style="flex-wrap:wrap">${pillsHtml}</div><div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">${p.desc || ''}</div>`;
     container.appendChild(header);
 
-    // Le reste ne change pas (Inventaire lecture seule + Deck)
-    const dashboard = document.createElement('div');
+    const dashboard = document.createElement('div'); 
     dashboard.className = 'player-dashboard';
     
+    // 2. Inventaire
     dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
-    const invInput = document.createElement('textarea');
+    const invInput = document.createElement('textarea'); 
     invInput.className = 'inventory-box';
-    invInput.value = p.inventory || 'Votre sac est vide.';
+    invInput.value = p.inventory || 'Votre sac est vide.'; 
     invInput.readOnly = true; 
-    invInput.style.backgroundColor = '#e6e6e6'; 
-    invInput.style.color = '#555';
-    invInput.style.cursor = 'default';
-    invInput.style.outline = 'none';
+    invInput.style.cssText = 'background:#e6e6e6; color:#555; cursor:default; outline:none;';
     dashboard.appendChild(invInput);
 
-    dashboard.innerHTML += `
-        <h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck de Combat</h3>
-        <p class="play-hint">Clique sur une carte pour la jouer dans le chat !</p>
-    `;
-
-    const deckGrid = document.createElement('div');
+    // 3. Deck (Correction ici)
+    dashboard.innerHTML += `<h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck</h3><p class="play-hint">Clique pour jouer !</p>`;
+    const deckGrid = document.createElement('div'); 
     deckGrid.className = 'card-grid player-deck';
-    if(p.deck.length === 0) {
-        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Deck vide. Demande au MJ !</p>';
+    
+    // Sécurité : on s'assure que p.deck est un tableau
+    const userDeck = Array.isArray(p.deck) ? p.deck : [];
+
+    if(userDeck.length === 0) {
+        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Coffre vide.</p>';
     } else {
-        p.deck.forEach(cardId => {
+        userDeck.forEach(cardId => {
+            // On cherche la carte dans la base
             const c = gameData.cards.find(x => x.id === cardId);
+            
+            // On n'affiche QUE si la carte existe encore
             if(c) {
-                const el = document.createElement('div');
+                const el = document.createElement('div'); 
                 el.className = 'clash-card';
-                el.innerHTML = `
-                    <div class="cost">${c.cost}</div>
-                    <img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
-                    <h4>${c.name}</h4>
-                `;
-                el.onclick = () => {
-                    if(confirm(`Utiliser la carte "${c.name}" ?\nCela l'affichera dans le chat.`)) {
-                        playCardAction(p.name, c);
-                    }
+                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.src='https://placehold.co/100?text=?'"><h4>${c.name}</h4>`;
+                el.onclick = () => { 
+                    if(confirm(`Jouer "${c.name}" ?`)) playCardAction(p.name, c); 
                 };
                 deckGrid.appendChild(el);
             }
@@ -1933,3 +1911,25 @@ function openResourceManager() {
         render(); 
     };
 }
+
+// --- FIX MOBILE : RÉVEIL AUTOMATIQUE ---
+// Détecte quand l'utilisateur revient sur l'onglet/appli
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        console.log("👀 Retour sur l'app : Vérification des mises à jour...");
+        // On force une reconnexion propre pour récupérer les dernières données
+        const sid = document.getElementById('session-input').value;
+        if(sid) connectToSession(sid); 
+    }
+});
+
+// Détecte le focus (clic sur l'écran) pour les vieux téléphones
+window.addEventListener('focus', () => {
+    const sid = document.getElementById('session-input').value;
+    if(sid && document.visibilityState === 'visible') {
+        // On relance une synchro légère
+        import('./cloud.js').then(module => module.joinSession(sid, (newData) => {
+            updateLocalData(newData);
+        }));
+    }
+});
