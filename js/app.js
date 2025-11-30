@@ -284,18 +284,14 @@ function renderPlayer() {
 
 // --- MODULES ---
 
-// 1. MAP & ATLAS
-// MODULE MAP (AVEC POSITIONS SAUVEGARDÉES PAR CARTE)
-// MODULE MAP (GESTION DE PRÉSENCE PAR ZONE)
+// MODULE MAP (AVEC RENDU MÉTÉO)
 function renderMapModule(container, isEditable) {
-    // Initialisation Maps
     if (!gameData.maps) {
         gameData.maps = [{ id: 'default', name: 'Carte Principale', url: './assets/map.png', desc: 'Défaut' }];
         gameData.activeMapId = 'default';
         syncGameData(gameData);
     }
 
-    // Carte Active
     let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
     if(!currentMap || !currentMap.url) currentMap = { url: './assets/map.png', name: 'Défaut', id: 'default' };
 
@@ -303,126 +299,91 @@ function renderMapModule(container, isEditable) {
     wrapper.className = 'map-container';
     wrapper.style.backgroundColor = '#222';
     
-    // --- COUCHE 1 : L'IMAGE ---
+    // --- 1. COUCHE MÉTÉO ---
+    if (currentMap.weather && currentMap.weather !== 'none') {
+        const weatherLayer = document.createElement('div');
+        weatherLayer.className = `weather-layer fx-${currentMap.weather}`;
+        wrapper.appendChild(weatherLayer);
+    }
+
+    // --- 2. L'IMAGE ---
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
     img.onerror = function() { this.style.display = 'none'; };
     wrapper.appendChild(img);
 
-    // --- COUCHE 2 : INTERFACE DE GESTION (ROSTER) ---
-    // Un panneau à droite pour voir où sont les joueurs et les amener ici
+    // --- 3. ROSTER (MJ ONLY) ---
     if (isEditable) {
         const rosterPanel = document.createElement('div');
-        rosterPanel.style.position = 'absolute';
-        rosterPanel.style.top = '10px';
-        rosterPanel.style.right = '10px';
-        rosterPanel.style.width = '160px';
-        rosterPanel.style.background = 'rgba(0,0,0,0.8)';
-        rosterPanel.style.padding = '10px';
-        rosterPanel.style.borderRadius = '8px';
-        rosterPanel.style.color = 'white';
-        rosterPanel.style.zIndex = '200';
-        rosterPanel.style.maxHeight = '80%';
-        rosterPanel.style.overflowY = 'auto';
-
+        rosterPanel.style.cssText = 'position:absolute; top:10px; right:10px; width:160px; background:rgba(0,0,0,0.8); padding:10px; border-radius:8px; color:white; z-index:200; max-height:80%; overflow-y:auto;';
         rosterPanel.innerHTML = '<h5 style="margin:0 0 10px 0; border-bottom:1px solid #555; padding-bottom:5px;">Présence Ici</h5>';
 
         [...gameData.players, ...gameData.npcs].forEach(entity => {
-            // Initialisation de la mapId si elle n'existe pas
             if (!entity.mapId) entity.mapId = 'default';
-
             const isOnMap = entity.mapId === currentMap.id;
             
             const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.marginBottom = '5px';
-            row.style.cursor = 'pointer';
-            row.style.fontSize = '0.8rem';
-            row.title = isOnMap ? "Déjà ici (Cliquer pour sélectionner)" : "Cliquer pour téléporter ici";
-
+            row.style.cssText = 'display:flex; align-items:center; margin-bottom:5px; cursor:pointer; font-size:0.8rem;';
             row.innerHTML = `
                 <div style="width:10px; height:10px; border-radius:50%; background:${isOnMap ? '#4caf50' : '#555'}; margin-right:8px; border:1px solid white;"></div>
-                <img src="${entity.avatar}" style="width:20px; height:20px; border-radius:50%; margin-right:5px; opacity:${isOnMap ? 1 : 0.5}">
+                <img src="${entity.avatar}" style="width:20px; height:20px; border-radius:50%; margin-right:5px; opacity:${isOnMap ? 1 : 0.5}" onerror="this.src='https://placehold.co/20'">
                 <span style="opacity:${isOnMap ? 1 : 0.5}">${entity.name}</span>
             `;
-
             row.onclick = (e) => {
-                e.stopPropagation(); // Ne pas cliquer sur la carte en dessous
-                
+                e.stopPropagation();
                 if (!isOnMap) {
-                    // TÉLÉPORTATION : On change son mapId et on le met au centre
-                    if(confirm(`Déplacer ${entity.name} vers cette carte ?`)) {
+                    if(confirm(`Déplacer ${entity.name} ici ?`)) {
                         entity.mapId = currentMap.id;
-                        entity.x = 50; 
-                        entity.y = 50;
-                        syncGameData(gameData);
-                        render();
+                        entity.x = 50; entity.y = 50;
+                        syncGameData(gameData); render();
                     }
                 } else {
-                    // SÉLECTION : Si déjà là, on le sélectionne
-                    selectedEntityId = entity.id;
-                    render();
+                    selectedEntityId = entity.id; render();
                 }
             };
             rosterPanel.appendChild(row);
         });
-
         wrapper.appendChild(rosterPanel);
 
-        // Bouton Atlas (déplacé à gauche pour pas gêner)
         const btnManage = document.createElement('button');
         btnManage.className = 'btn btn-secondary';
         btnManage.innerHTML = '🗺️ Atlas';
-        btnManage.style.position = 'absolute';
-        btnManage.style.top = '10px'; btnManage.style.left = '10px'; btnManage.style.zIndex = '50';
+        btnManage.style.cssText = 'position:absolute; top:10px; left:10px; z-index:50;';
         btnManage.onclick = () => openMapManager();
         wrapper.appendChild(btnManage);
     }
 
-    // --- LOGIQUE DE DÉPLACEMENT ---
     if(isEditable) {
         wrapper.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') return;
-
             if (selectedEntityId) {
                 let entity = findEntityById(selectedEntityId);
-                
-                // On ne peut bouger que si l'entité est SUR CETTE CARTE
                 if (entity && entity.mapId === currentMap.id) {
                     const rect = wrapper.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    
-                    entity.x = x; 
-                    entity.y = y;
-                    syncGameData(gameData); 
-                    render(); 
+                    entity.x = ((e.clientX - rect.left) / rect.width) * 100;
+                    entity.y = ((e.clientY - rect.top) / rect.height) * 100;
+                    syncGameData(gameData); render(); 
                 } else if (entity) {
-                    alert(`${entity.name} n'est pas sur cette carte ! Utilisez le menu à droite pour le faire venir.`);
+                    alert(`${entity.name} n'est pas sur cette carte !`);
                 }
             }
         });
     }
 
-    // --- COUCHE 3 : RENDU DES PIONS (FILTRÉ) ---
+    // --- 4. PIONS ---
     [...gameData.players, ...gameData.npcs].forEach(entity => {
-        // FILTRE CRUCIAL : On n'affiche le pion QUE si son mapId correspond à la carte active
         if (entity.mapId !== currentMap.id) return;
-
         const p = document.createElement('div');
         p.className = 'pawn';
         p.style.left = entity.x + '%';
         p.style.top = entity.y + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
-        
         if (selectedEntityId === entity.id) {
             p.style.borderColor = 'var(--cr-gold)';
             p.style.boxShadow = '0 0 15px var(--cr-gold)';
             p.style.zIndex = 100;
         }
-
         if (isEditable) {
             p.onclick = (e) => {
                 e.stopPropagation();
@@ -430,17 +391,16 @@ function renderMapModule(container, isEditable) {
                 render(); 
             };
         }
-        
         const label = document.createElement('div');
         label.className = 'pawn-label';
         label.innerText = entity.name;
         p.appendChild(label);
         wrapper.appendChild(p);
     });
-
     container.appendChild(wrapper);
 }
 
+// --- ATLAS (AVEC MÉTÉO) ---
 function openMapManager() {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
@@ -449,20 +409,30 @@ function openMapManager() {
     document.getElementById('form-title').innerText = 'Atlas des Cartes';
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
 
+    // Options Météo
+    const weatherOptions = [
+        {value:'none', label:'☀️ Normal'},
+        {value:'rain', label:'🌧️ Pluie'},
+        {value:'snow', label:'❄️ Neige'},
+        {value:'fog', label:'🌫️ Brouillard'},
+        {value:'night', label:'🌑 Nuit'},
+        {value:'sepia', label:'📜 Sépia (Vieux)'}
+    ];
+
     container.querySelector('#btn-new-map').onclick = () => {
         modal.style.display = 'none'; 
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom du lieu', value: '' },
-            { name: 'url', label: 'URL Image (laisser vide pour défaut)', value: '' }, // Vide par défaut
+            { name: 'url', label: 'URL Image', value: '', type:'image' },
+            { name: 'weather', label: 'Ambiance / Météo', type: 'select', options: weatherOptions, value: 'none' }, // Nouveau champ
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            // FIX 1 : Si l'URL est vide, on force une image locale par défaut
             const safeUrl = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
-
             gameData.maps.push({ 
                 id: generateId(), 
-                name: data.name || 'Sans Nom', // Nom par défaut 
+                name: data.name || 'Sans Nom', 
                 url: safeUrl, 
+                weather: data.weather, // Sauvegarde météo
                 desc: data.desc 
             });
             saveData(`Carte créée : ${data.name}`);
@@ -482,15 +452,13 @@ function openMapManager() {
         row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
         row.style.textAlign = 'left';
         
-        // FIX 2 : Gestion d'erreur sans réseau (on remplace l'image par un emoji si elle plante)
-        // On évite les liens externes type 'placehold.co' qui causent tes bugs
         row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center">
                 <div>
                     <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
-                    <small style="opacity:0.7">${m.desc || ''}</small>
+                    <small style="opacity:0.7">Météo: ${m.weather || 'Normal'}</small>
                 </div>
-                <div class="map-thumb-container" style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
+                <div style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
                      <img src="${m.url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='🗺️'">
                 </div>
             </div>
@@ -514,12 +482,13 @@ function openMapManager() {
             modal.style.display = 'none';
             openFormModal(`Modifier ${m.name}`, [
                 { name: 'name', label: 'Nom', value: m.name },
-                { name: 'url', label: 'URL', value: m.url },
+                { name: 'url', label: 'URL', value: m.url, type:'image' },
+                { name: 'weather', label: 'Météo', type: 'select', options: weatherOptions, value: m.weather || 'none' }, // Champ modifiable
                 { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
             ], (data) => {
                 m.name = data.name; 
-                // Si vide à la modif, on garde l'ancienne ou on met défaut
                 m.url = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+                m.weather = data.weather;
                 m.desc = data.desc;
                 saveData();
                 setTimeout(() => openMapManager(), 100);
@@ -1548,6 +1517,8 @@ function showQRCode() {
 // --- GESTIONNAIRE DE DECK (CORRIGÉ & STABLE) ---
 function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
+    modal.querySelector('.modal-content').classList.add('modal-xl'); 
+    
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
@@ -1643,11 +1614,15 @@ function openDeckManager(entityArg) {
     // Lancement initial
     renderManager();
 
-    // Gestion fermeture
+   // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
+        
+        // ON RETIRE LA CLASSE XL ICI
+        modal.querySelector('.modal-content').classList.remove('modal-xl'); 
+        
         modal.style.display = 'none';
-        render(); // Un dernier rafraîchissement global pour être sûr
+        render(); 
     };
 }
 
