@@ -1,5 +1,4 @@
 import { initialGameData, generateId, formatTime } from './data.js';
-// L'import crucial pour la sauvegarde
 import { joinSession, createSession, syncGameData } from './cloud.js';
 
 // --- STATE LOCAL ---
@@ -8,9 +7,14 @@ let currentUser = { role: 'guest', id: null };
 let currentTab = 'map';
 let prevDeckSize = 0;
 let selectedEntityId = null;
-let selectedRelCharId = null;
 let currentFormCallback = null;
-let isFirstLoad = true; // Pour éviter l'anim au démarrage
+let isFirstLoad = true;
+let selectedRelCharId = null; // Mémoire du perso sélectionné dans l'onglet Relations
+
+// Helper : Trouve un perso (Joueur ou PNJ) par son ID
+function findEntityById(id) {
+    return gameData.players.find(p => p.id === id) || gameData.npcs.find(n => n.id === id);
+}
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -18,11 +22,6 @@ const screens = {
     dm: document.getElementById('dm-screen'),
     player: document.getElementById('player-screen')
 };
-
-// --- HELPER UNIVERSEL ---
-function findEntityById(id) {
-    return gameData.players.find(p => p.id === id) || gameData.npcs.find(n => n.id === id);
-}
 
 // --- INIT ---
 window.addEventListener('DOMContentLoaded', init);
@@ -53,14 +52,6 @@ function setupEventListeners() {
         if(!sid) return alert('Entrez un nom de session');
         
         gameData = JSON.parse(JSON.stringify(initialGameData));
-        // Init des ressources par défaut
-        if (!gameData.resourceTypes) {
-            gameData.resourceTypes = [
-                { id: 'gold', name: 'Or', icon: '💰', color: '#ffbd2e' },
-                { id: 'elixir', name: 'Élixir', icon: '💧', color: '#d6308e' }
-            ];
-        }
-
         const success = await createSession(sid, gameData);
         if(success) {
             currentUser = { role: 'dm', id: 'dm' };
@@ -77,13 +68,19 @@ function setupEventListeners() {
         await connectToSession(sid);
     });
 
-    // Navigation (Fix Mobile)
+    // Navigation
+    document.querySelectorAll('#dm-nav button').forEach(btn => {
+        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'dm'));
+    });
+    // Navigation (CORRECTIF MOBILE)
     document.querySelectorAll('#dm-nav button').forEach(btn => {
         btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.tab, 'dm'));
     });
+    
+    // Ici on utilise 'currentTarget' pour être sûr de capter le clic même sur l'icône
     document.querySelectorAll('#player-nav button').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Empêche les comportements bizarres sur mobile
             switchTab(e.currentTarget.dataset.tab, 'player');
         });
     });
@@ -123,32 +120,6 @@ function enterGame(sid) {
     render();
 }
 
-function updateLocalData(newData) {
-    if (isFirstLoad) {
-        gameData = newData;
-        if (currentUser.role === 'player') {
-            const me = newData.players.find(p => p.id === currentUser.id);
-            if (me) prevDeckSize = me.deck.length;
-        }
-        isFirstLoad = false;
-        render();
-        return;
-    }
-
-    if (currentUser.role === 'player') {
-        const meNew = newData.players.find(p => p.id === currentUser.id);
-        if (typeof prevDeckSize === 'undefined') prevDeckSize = 0;
-
-        if (meNew && meNew.deck.length > prevDeckSize) {
-            const newCardId = meNew.deck[meNew.deck.length - 1];
-            if(newCardId) triggerChestAnimation(newCardId);
-        }
-        if (meNew) prevDeckSize = meNew.deck.length;
-    }
-    gameData = newData;
-    render();
-}
-
 function saveData(actionLog = null) {
     if (actionLog) {
         gameData.logs.unshift({ text: actionLog, timestamp: new Date().toISOString() });
@@ -165,6 +136,70 @@ function switchTab(tabName, role) {
     render();
 }
 
+// --- SYSTEME DE MODALE DYNAMIQUE (FIXED) ---
+function openFormModal(title, fields, onSave) {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    // FIX: Toujours réafficher le bouton par défaut
+    saveBtn.style.display = 'inline-block';
+    saveBtn.innerText = 'Sauvegarder';
+    
+    document.getElementById('form-title').innerText = title;
+    container.innerHTML = '';
+
+    fields.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.innerText = f.label;
+        div.appendChild(label);
+
+        let input;
+        if (f.type === 'select') {
+            input = document.createElement('select');
+            f.options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.innerText = opt.label;
+                if(opt.value === f.value) option.selected = true;
+                input.appendChild(option);
+            });
+        } else if (f.type === 'textarea') {
+            input = document.createElement('textarea');
+            input.rows = 3;
+            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
+        } else {
+            input = document.createElement('input');
+            input.type = f.type || 'text';
+            input.value = (f.value !== null && f.value !== undefined) ? f.value : '';
+        }
+        
+        input.id = `field-${f.name}`;
+        div.appendChild(input);
+        container.appendChild(div);
+    });
+
+    currentFormCallback = onSave;
+    modal.style.display = 'flex';
+
+    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
+    
+    // Nettoyage et assignation event
+    saveBtn.onclick = null;
+    saveBtn.onclick = () => {
+        const result = {};
+        fields.forEach(f => {
+            const el = document.getElementById(`field-${f.name}`);
+            result[f.name] = el.value;
+        });
+        currentFormCallback(result);
+        modal.style.display = 'none';
+    };
+}
+
 // --- RENDERING ENGINE ---
 
 function render() {
@@ -173,16 +208,19 @@ function render() {
 }
 
 function renderDM() {
-    // Init types ressources si absent
+    // 1. INITIALISATION DES TYPES DE RESSOURCES (Si inexistant)
     if (!gameData.resourceTypes) {
         gameData.resourceTypes = [
             { id: 'gold', name: 'Or', icon: '💰', color: '#ffbd2e' },
             { id: 'elixir', name: 'Élixir', icon: '💧', color: '#d6308e' }
         ];
+        // On sauvegarde silencieusement pour appliquer la structure
         syncGameData(gameData);
     }
-
+    
     const header = document.querySelector('#dm-screen header');
+    // ...
+    // On met à jour la navigation pour inclure l'onglet Système
     header.querySelector('#dm-nav').innerHTML = `
         <button data-tab="map" class="${currentTab === 'map' ? 'active' : ''}">Carte</button>
         <button data-tab="players" class="${currentTab === 'players' ? 'active' : ''}">Joueurs</button>
@@ -193,13 +231,16 @@ function renderDM() {
         <button data-tab="journal" class="${currentTab === 'journal' ? 'active' : ''}">Journal</button>
         <button data-tab="system" class="${currentTab === 'system' ? 'active' : ''}" style="color:#ff5e5e">💾 Système</button>
     `;
+
+    // Réattacher les événements de clic sur le nouveau menu
     header.querySelectorAll('#dm-nav button').forEach(btn => {
-        btn.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.tab, 'dm'));
+        btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab, 'dm'));
     });
 
     const container = document.getElementById('dm-content');
     container.innerHTML = '';
 
+    // Routing des onglets
     if (currentTab === 'map') renderMapModule(container, true);
     else if (currentTab === 'players') renderPlayersModule(container);
     else if (currentTab === 'chat') renderChatModule(container);
@@ -207,16 +248,33 @@ function renderDM() {
     else if (currentTab === 'relations') renderRelationsModule(container);
     else if (currentTab === 'quests') renderQuestsModule(container);
     else if (currentTab === 'journal') renderJournalModule(container);
-    else if (currentTab === 'system') renderSystemModule(container);
+    else if (currentTab === 'system') renderSystemModule(container); // <--- NOUVEAU
 }
 
 function renderPlayer() {
     const container = document.getElementById('player-content');
-    container.innerHTML = '';
+    container.innerHTML = ''; // Nettoyage
     
+    // Récupération du joueur
     const me = gameData.players.find(p => p.id === currentUser.id);
-    if (!me) return container.innerHTML = '<div style="text-align:center;color:white;margin-top:50px">☠️ Personnage supprimé</div>';
+    
+    // Cas d'erreur : Joueur supprimé
+    if (!me) {
+        container.innerHTML = `
+            <div style="text-align:center; padding-top:50px; color:white;">
+                <h1>☠️</h1>
+                <p>Ce personnage n'existe plus.</p>
+                <a href="index.html" class="btn btn-secondary">Retour</a>
+            </div>
+        `;
+        return;
+    }
 
+    // On supprime les anciennes lignes qui mettaient à jour le header inexistant
+    // document.getElementById('player-name-display').innerText = ... (SUPPRIMÉ)
+    // document.getElementById('player-resources').innerHTML = ... (SUPPRIMÉ)
+
+    // Routing des onglets
     if (currentTab === 'p-stats') renderPlayerStats(container, me);
     else if (currentTab === 'p-map') renderMapModule(container, false);
     else if (currentTab === 'p-chat') renderChatModule(container);
@@ -224,16 +282,20 @@ function renderPlayer() {
     else if (currentTab === 'p-journal') renderJournalModule(container);
 }
 
-// ================= MODULES =================
+// --- MODULES ---
 
-// 1. MAP (AVEC PRÉSENCE)
+// 1. MAP & ATLAS
+// MODULE MAP (AVEC POSITIONS SAUVEGARDÉES PAR CARTE)
+// MODULE MAP (GESTION DE PRÉSENCE PAR ZONE)
 function renderMapModule(container, isEditable) {
+    // Initialisation Maps
     if (!gameData.maps) {
         gameData.maps = [{ id: 'default', name: 'Carte Principale', url: './assets/map.png', desc: 'Défaut' }];
         gameData.activeMapId = 'default';
         syncGameData(gameData);
     }
 
+    // Carte Active
     let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
     if(!currentMap || !currentMap.url) currentMap = { url: './assets/map.png', name: 'Défaut', id: 'default' };
 
@@ -241,83 +303,126 @@ function renderMapModule(container, isEditable) {
     wrapper.className = 'map-container';
     wrapper.style.backgroundColor = '#222';
     
+    // --- COUCHE 1 : L'IMAGE ---
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
     img.onerror = function() { this.style.display = 'none'; };
     wrapper.appendChild(img);
 
-    // ROSTER PANEL (MJ)
+    // --- COUCHE 2 : INTERFACE DE GESTION (ROSTER) ---
+    // Un panneau à droite pour voir où sont les joueurs et les amener ici
     if (isEditable) {
         const rosterPanel = document.createElement('div');
-        rosterPanel.style.cssText = 'position:absolute; top:10px; right:10px; width:160px; background:rgba(0,0,0,0.8); padding:10px; border-radius:8px; color:white; z-index:200; max-height:80%; overflow-y:auto;';
+        rosterPanel.style.position = 'absolute';
+        rosterPanel.style.top = '10px';
+        rosterPanel.style.right = '10px';
+        rosterPanel.style.width = '160px';
+        rosterPanel.style.background = 'rgba(0,0,0,0.8)';
+        rosterPanel.style.padding = '10px';
+        rosterPanel.style.borderRadius = '8px';
+        rosterPanel.style.color = 'white';
+        rosterPanel.style.zIndex = '200';
+        rosterPanel.style.maxHeight = '80%';
+        rosterPanel.style.overflowY = 'auto';
+
         rosterPanel.innerHTML = '<h5 style="margin:0 0 10px 0; border-bottom:1px solid #555; padding-bottom:5px;">Présence Ici</h5>';
 
         [...gameData.players, ...gameData.npcs].forEach(entity => {
+            // Initialisation de la mapId si elle n'existe pas
             if (!entity.mapId) entity.mapId = 'default';
+
             const isOnMap = entity.mapId === currentMap.id;
             
             const row = document.createElement('div');
-            row.style.cssText = 'display:flex; align-items:center; margin-bottom:5px; cursor:pointer; font-size:0.8rem;';
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '5px';
+            row.style.cursor = 'pointer';
+            row.style.fontSize = '0.8rem';
+            row.title = isOnMap ? "Déjà ici (Cliquer pour sélectionner)" : "Cliquer pour téléporter ici";
+
             row.innerHTML = `
                 <div style="width:10px; height:10px; border-radius:50%; background:${isOnMap ? '#4caf50' : '#555'}; margin-right:8px; border:1px solid white;"></div>
                 <img src="${entity.avatar}" style="width:20px; height:20px; border-radius:50%; margin-right:5px; opacity:${isOnMap ? 1 : 0.5}">
                 <span style="opacity:${isOnMap ? 1 : 0.5}">${entity.name}</span>
             `;
+
             row.onclick = (e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // Ne pas cliquer sur la carte en dessous
+                
                 if (!isOnMap) {
-                    if(confirm(`Déplacer ${entity.name} ici ?`)) {
+                    // TÉLÉPORTATION : On change son mapId et on le met au centre
+                    if(confirm(`Déplacer ${entity.name} vers cette carte ?`)) {
                         entity.mapId = currentMap.id;
-                        entity.x = 50; entity.y = 50;
-                        syncGameData(gameData); render();
+                        entity.x = 50; 
+                        entity.y = 50;
+                        syncGameData(gameData);
+                        render();
                     }
                 } else {
-                    selectedEntityId = entity.id; render();
+                    // SÉLECTION : Si déjà là, on le sélectionne
+                    selectedEntityId = entity.id;
+                    render();
                 }
             };
             rosterPanel.appendChild(row);
         });
+
         wrapper.appendChild(rosterPanel);
 
+        // Bouton Atlas (déplacé à gauche pour pas gêner)
         const btnManage = document.createElement('button');
         btnManage.className = 'btn btn-secondary';
         btnManage.innerHTML = '🗺️ Atlas';
-        btnManage.style.cssText = 'position:absolute; top:10px; left:10px; z-index:50;';
+        btnManage.style.position = 'absolute';
+        btnManage.style.top = '10px'; btnManage.style.left = '10px'; btnManage.style.zIndex = '50';
         btnManage.onclick = () => openMapManager();
         wrapper.appendChild(btnManage);
     }
 
+    // --- LOGIQUE DE DÉPLACEMENT ---
     if(isEditable) {
         wrapper.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') return;
+
             if (selectedEntityId) {
                 let entity = findEntityById(selectedEntityId);
+                
+                // On ne peut bouger que si l'entité est SUR CETTE CARTE
                 if (entity && entity.mapId === currentMap.id) {
                     const rect = wrapper.getBoundingClientRect();
-                    entity.x = ((e.clientX - rect.left) / rect.width) * 100;
-                    entity.y = ((e.clientY - rect.top) / rect.height) * 100;
-                    syncGameData(gameData); render(); 
+                    const x = ((e.clientX - rect.left) / rect.width) * 100;
+                    const y = ((e.clientY - rect.top) / rect.height) * 100;
+                    
+                    entity.x = x; 
+                    entity.y = y;
+                    syncGameData(gameData); 
+                    render(); 
                 } else if (entity) {
-                    alert(`${entity.name} n'est pas sur cette carte !`);
+                    alert(`${entity.name} n'est pas sur cette carte ! Utilisez le menu à droite pour le faire venir.`);
                 }
             }
         });
     }
 
-    // PIONS
+    // --- COUCHE 3 : RENDU DES PIONS (FILTRÉ) ---
     [...gameData.players, ...gameData.npcs].forEach(entity => {
+        // FILTRE CRUCIAL : On n'affiche le pion QUE si son mapId correspond à la carte active
         if (entity.mapId !== currentMap.id) return;
+
         const p = document.createElement('div');
         p.className = 'pawn';
         p.style.left = entity.x + '%';
         p.style.top = entity.y + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
+        
         if (selectedEntityId === entity.id) {
             p.style.borderColor = 'var(--cr-gold)';
             p.style.boxShadow = '0 0 15px var(--cr-gold)';
             p.style.zIndex = 100;
         }
+
         if (isEditable) {
             p.onclick = (e) => {
                 e.stopPropagation();
@@ -325,24 +430,141 @@ function renderMapModule(container, isEditable) {
                 render(); 
             };
         }
+        
         const label = document.createElement('div');
         label.className = 'pawn-label';
         label.innerText = entity.name;
         p.appendChild(label);
         wrapper.appendChild(p);
     });
+
     container.appendChild(wrapper);
 }
 
-// 2. PLAYERS (RESSOURCES DYNAMIQUES)
+function openMapManager() {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+    
+    document.getElementById('form-title').innerText = 'Atlas des Cartes';
+    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
+
+    container.querySelector('#btn-new-map').onclick = () => {
+        modal.style.display = 'none'; 
+        openFormModal('Nouvelle Carte', [
+            { name: 'name', label: 'Nom du lieu', value: '' },
+            { name: 'url', label: 'URL Image (laisser vide pour défaut)', value: '' }, // Vide par défaut
+            { name: 'desc', label: 'Description', type: 'textarea', value: '' }
+        ], (data) => {
+            // FIX 1 : Si l'URL est vide, on force une image locale par défaut
+            const safeUrl = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+
+            gameData.maps.push({ 
+                id: generateId(), 
+                name: data.name || 'Sans Nom', // Nom par défaut 
+                url: safeUrl, 
+                desc: data.desc 
+            });
+            saveData(`Carte créée : ${data.name}`);
+            setTimeout(() => openMapManager(), 100); 
+        });
+    };
+
+    const list = document.createElement('div');
+    list.style.maxHeight = '300px'; list.style.overflowY = 'auto';
+
+    gameData.maps.forEach(m => {
+        const isActive = m.id === gameData.activeMapId;
+        const row = document.createElement('div');
+        row.className = 'panel';
+        row.style.marginBottom = '10px';
+        row.style.background = isActive ? '#e3f2fd' : 'white';
+        row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
+        row.style.textAlign = 'left';
+        
+        // FIX 2 : Gestion d'erreur sans réseau (on remplace l'image par un emoji si elle plante)
+        // On évite les liens externes type 'placehold.co' qui causent tes bugs
+        row.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center">
+                <div>
+                    <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
+                    <small style="opacity:0.7">${m.desc || ''}</small>
+                </div>
+                <div class="map-thumb-container" style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
+                     <img src="${m.url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='🗺️'">
+                </div>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
+                ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:orange" id="edit-${m.id}">✏️</button>
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:red" id="del-${m.id}">🗑️</button>
+            </div>
+        `;
+
+        if(!isActive) {
+            row.querySelector(`#load-${m.id}`).onclick = () => {
+                gameData.activeMapId = m.id;
+                gameData.config.mapUrl = m.url;
+                saveData(`Changement de carte : ${m.name}`);
+                modal.style.display = 'none';
+            };
+        }
+
+        row.querySelector(`#edit-${m.id}`).onclick = () => {
+            modal.style.display = 'none';
+            openFormModal(`Modifier ${m.name}`, [
+                { name: 'name', label: 'Nom', value: m.name },
+                { name: 'url', label: 'URL', value: m.url },
+                { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
+            ], (data) => {
+                m.name = data.name; 
+                // Si vide à la modif, on garde l'ancienne ou on met défaut
+                m.url = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+                m.desc = data.desc;
+                saveData();
+                setTimeout(() => openMapManager(), 100);
+            });
+        };
+
+        row.querySelector(`#del-${m.id}`).onclick = () => {
+            if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
+            if(confirm('Supprimer ?')) {
+                gameData.maps = gameData.maps.filter(x => x.id !== m.id);
+                if(isActive) {
+                    gameData.activeMapId = gameData.maps[0].id;
+                    gameData.config.mapUrl = gameData.maps[0].url;
+                }
+                saveData();
+                openMapManager(); 
+            }
+        };
+        list.appendChild(row);
+    });
+
+    container.appendChild(list);
+    saveBtn.style.display = 'none';
+    modal.style.display = 'flex';
+    modal.querySelector('.close-form').onclick = () => {
+        saveBtn.style.display = 'inline-block'; 
+        modal.style.display = 'none';
+    };
+}
+
+// 2. PLAYERS & PNJ (Avec bouton Deck Manager)
+// 2. PLAYERS & PNJ (VERSION RESSOURCES DYNAMIQUES)
 function renderPlayersModule(container) {
+    // En-tête avec le bouton de gestion des ressources
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
             <button id="btn-add-p" class="btn btn-primary" style="flex:1">+ Nouveau Personnage</button>
             <button id="btn-manage-res" class="btn btn-secondary">💎 Gérer Ressources</button>
         </div>
     `;
+    
+    // Action Bouton Gestion Ressources
     document.getElementById('btn-manage-res').onclick = () => openResourceManager();
+
+    // Action Bouton Création Perso
     document.getElementById('btn-add-p').onclick = () => {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
@@ -350,13 +572,19 @@ function renderPlayersModule(container) {
             { name: 'avatar', label: 'URL Avatar', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            const newChar = { id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, deck: [], inventory: '', x: 50, y: 50 };
-            if(data.type === 'player') gameData.players.push(newChar); else gameData.npcs.push(newChar);
+            const newChar = {
+                id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc,
+                deck: [], inventory: '', x: 50, y: 50
+                // Note: Les ressources seront créées à la volée
+            };
+            if(data.type === 'player') gameData.players.push(newChar);
+            else gameData.npcs.push(newChar);
             saveData(`Création de ${data.name}`);
         });
     };
 
     const list = document.createElement('div');
+    
     const renderRow = (char, type) => {
         const row = document.createElement('div');
         row.className = 'panel';
@@ -366,16 +594,23 @@ function renderPlayersModule(container) {
         row.style.gap = '10px';
         row.style.textAlign = 'left';
 
+        // --- GÉNÉRATION DYNAMIQUE DES INPUTS ---
         let resourcesHtml = '';
         if (type === 'player' && gameData.resourceTypes) {
             resourcesHtml = '<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px;">';
             gameData.resourceTypes.forEach(res => {
+                // On récupère la valeur actuelle ou 0
                 const val = char[res.id] !== undefined ? char[res.id] : 0;
                 resourcesHtml += `
                     <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
                         <span style="font-size:0.8rem; margin-right:2px;" title="${res.name}">${res.icon}</span> 
-                        <input type="number" class="res-input" data-id="${char.id}" data-type="${res.id}" style="width:50px; padding:2px; border:1px solid #ccc;" value="${val}">
-                    </div>`;
+                        <input type="number" class="res-input" 
+                            data-id="${char.id}" 
+                            data-type="${res.id}" 
+                            style="width:50px; padding:2px; border:1px solid #ccc;" 
+                            value="${val}">
+                    </div>
+                `;
             });
             resourcesHtml += '</div>';
         }
@@ -396,16 +631,22 @@ function renderPlayersModule(container) {
             </div>
         `;
 
+        // Listeners Ressources Dynamiques
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
                 const val = parseInt(e.target.value) || 0;
-                const fieldType = e.target.dataset.type;
+                const fieldType = e.target.dataset.type; // ex: 'gold', 'mana'
                 const pid = e.target.dataset.id;
+                
                 const targetP = findEntityById(pid);
-                if(targetP) { targetP[fieldType] = val; syncGameData(gameData); }
+                if(targetP) {
+                    targetP[fieldType] = val; // Mise à jour dynamique
+                    syncGameData(gameData);
+                }
             };
         });
 
+        // Boutons actions (inchangés)
         row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
@@ -428,106 +669,232 @@ function renderPlayersModule(container) {
         };
         list.appendChild(row);
     };
+
     gameData.players.forEach(p => renderRow(p, 'player'));
     if(gameData.npcs.length > 0) {
         const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
-        list.appendChild(sep); gameData.npcs.forEach(n => renderRow(n, 'npc'));
+        list.appendChild(sep);
+        gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    }
+    container.appendChild(list);
+
+
+    gameData.players.forEach(p => renderRow(p, 'player'));
+    if(gameData.npcs.length > 0) {
+        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
+        list.appendChild(sep);
+        gameData.npcs.forEach(n => renderRow(n, 'npc'));
     }
     container.appendChild(list);
 }
 
-// 3. CHAT
+// 3. CHAT (MESSAGERIE PRIVÉE + DÉS)
 function renderChatModule(container) {
-    const wrapper = document.createElement('div'); wrapper.className = 'chat-window';
-    const messages = document.createElement('div'); messages.className = 'chat-messages';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-window';
+    
+    // --- 1. ZONE D'AFFICHAGE DES MESSAGES ---
+    const messages = document.createElement('div');
+    messages.className = 'chat-messages';
     
     gameData.chat.forEach(msg => {
-        const targetId = msg.target || 'global';
+        // LOGIQUE DE FILTRAGE (Qui voit quoi ?)
+        const targetId = msg.target || 'global'; // Par défaut 'global' pour les vieux messages
         const myId = currentUser.role === 'dm' ? 'dm' : currentUser.id;
-        const senderId = msg.senderId || 'inconnu';
-        if (!((targetId === 'global') || (senderId === myId) || (targetId === myId))) return;
+        const senderId = msg.senderId || 'inconnu'; // On devra stocker l'ID maintenant
 
+        // On affiche SI : Global OU C'est moi qui envoie OU C'est pour moi
+        const shouldShow = (targetId === 'global') || (senderId === myId) || (targetId === myId);
+
+        if (!shouldShow) return; // On saute ce message, il ne nous concerne pas
+
+        // STYLING
         const isSelf = senderId === myId;
         const isWhisper = targetId !== 'global';
         const isDice = msg.text.startsWith('🎲');
+        
         const div = document.createElement('div');
         div.className = `message ${isSelf ? 'self' : ''}`;
         
-        let bubbleStyle = ''; let prefix = '';
-        if (isWhisper) {
-            bubbleStyle = 'background:#e0c3fc; color:#4a148c; border:1px solid #7c4dff;';
-            let targetName = 'MJ';
-            if(targetId !== 'dm') { const t = gameData.players.find(p => p.id === targetId); if(t) targetName = t.name; }
-            prefix = isSelf ? `<small style="display:block; font-weight:bold; color:#4a148c">🔒 À ${targetName}</small>` : `<small style="display:block; font-weight:bold; color:#4a148c">🔒 De ${msg.sender}</small>`;
-        }
-        if (isDice) bubbleStyle = 'background:var(--cr-gold); color:black; font-weight:bold; border:2px solid black';
+        let bubbleStyle = '';
+        let prefix = '';
 
-        div.innerHTML = `<small>${isSelf ? 'Moi' : msg.sender} - ${formatTime(msg.timestamp)}</small><div class="bubble" style="${bubbleStyle}">${prefix}${msg.text}</div>`;
+        if (isWhisper) {
+            bubbleStyle = 'background:#e0c3fc; color:#4a148c; border:1px solid #7c4dff;'; // Violet style
+            // On affiche "À X" ou "De X"
+            if(isSelf) {
+                // Je cherche le nom du destinataire pour l'afficher
+                let targetName = 'MJ';
+                if(targetId !== 'dm') {
+                    const t = gameData.players.find(p => p.id === targetId);
+                    if(t) targetName = t.name;
+                }
+                prefix = `<small style="display:block; font-weight:bold; color:#4a148c">🔒 À ${targetName}</small>`;
+            } else {
+                prefix = `<small style="display:block; font-weight:bold; color:#4a148c">🔒 De ${msg.sender}</small>`;
+            }
+        }
+        
+        if (isDice) {
+            bubbleStyle = 'background:var(--cr-gold); color:black; font-weight:bold; border:2px solid black';
+        }
+
+        div.innerHTML = `
+            <small>${isSelf ? 'Moi' : msg.sender} - ${formatTime(msg.timestamp)}</small>
+            <div class="bubble" style="${bubbleStyle}">
+                ${prefix}
+                ${msg.text}
+            </div>
+        `;
         messages.appendChild(div);
     });
     
+    // --- 2. ZONE DE CONTRÔLE (BAS) ---
     const controls = document.createElement('div');
-    controls.style.cssText = 'padding:10px; background:#ddd; border-top:2px solid white;';
+    controls.style.padding = '10px';
+    controls.style.background = '#ddd';
+    controls.style.borderTop = '2px solid white';
+
+    // A. BARRE DE DÉS
     const diceBar = document.createElement('div');
-    diceBar.style.cssText = 'margin-bottom:5px; display:flex; gap:5px;';
+    diceBar.style.marginBottom = '5px';
+    diceBar.style.display = 'flex';
+    diceBar.style.gap = '5px';
+    
     ['d6', 'd20', 'd100'].forEach(type => {
         const btn = document.createElement('button');
-        btn.className = 'btn'; btn.style.cssText = 'padding:2px 8px; font-size:0.7rem; background:white; color:#333; border-bottom:2px solid #999;';
+        btn.className = 'btn';
+        btn.style.padding = '2px 8px';
+        btn.style.fontSize = '0.7rem';
+        btn.style.background = 'white';
+        btn.style.color = '#333';
+        btn.style.borderBottom = '2px solid #999';
         btn.innerText = type;
+        
         btn.onclick = () => {
             const max = parseInt(type.substring(1));
-            sendMessage(`🎲 ${type} : ${Math.floor(Math.random() * max) + 1}`, true);
+            const result = Math.floor(Math.random() * max) + 1;
+            sendMessage(`🎲 ${type} : ${result}`, true); // true = c'est un dé
         };
         diceBar.appendChild(btn);
     });
 
-    const inputRow = document.createElement('div'); inputRow.style.cssText = 'display:flex; gap:5px;';
-    const select = document.createElement('select'); select.id = 'chat-target'; select.style.cssText = 'max-width:100px; border-radius:5px;';
-    select.innerHTML = '<option value="global">📢 Global</option>';
-    if(currentUser.role !== 'dm') select.innerHTML += '<option value="dm">👑 MJ</option>';
-    gameData.players.forEach(p => { if(p.id !== currentUser.id) select.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+    // B. INPUTS (Sélecteur + Texte + Bouton)
+    const inputRow = document.createElement('div');
+    inputRow.style.display = 'flex';
+    inputRow.style.gap = '5px';
 
-    const input = document.createElement('input'); input.type = 'text'; input.id = 'chat-input';
-    input.style.cssText = 'flex:1; padding:10px; border-radius:5px; border:1px solid #ccc;'; input.placeholder = 'Message...';
+    // Sélecteur de destinataire
+    const select = document.createElement('select');
+    select.id = 'chat-target';
+    select.style.maxWidth = '100px';
+    select.style.borderRadius = '5px';
+    
+    // Option Global
+    select.innerHTML = '<option value="global">📢 Global</option>';
+    
+    // Option MJ (si je suis joueur)
+    if(currentUser.role !== 'dm') {
+        select.innerHTML += '<option value="dm">👑 MJ</option>';
+    }
+    
+    // Options Joueurs (si je suis MJ ou pour parler entre joueurs)
+    gameData.players.forEach(p => {
+        // Je ne m'affiche pas moi-même dans la liste
+        if(p.id !== currentUser.id) {
+            select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+        }
+    });
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'chat-input';
+    input.style.flex = '1';
+    input.style.padding = '10px';
+    input.style.borderRadius = '5px';
+    input.style.border = '1px solid #ccc';
+    input.placeholder = 'Message...';
+
+    // Gestion de la touche "Entrée"
     input.onkeydown = (e) => { if(e.key === 'Enter') confirmSend(); };
-    const btnSend = document.createElement('button'); btnSend.className = 'btn btn-primary'; btnSend.innerText = 'Envoyer';
+
+    const btnSend = document.createElement('button');
+    btnSend.className = 'btn btn-primary';
+    btnSend.innerText = 'Envoyer';
     btnSend.onclick = () => confirmSend();
 
-    inputRow.appendChild(select); inputRow.appendChild(input); inputRow.appendChild(btnSend);
-    controls.appendChild(diceBar); controls.appendChild(inputRow);
-    wrapper.appendChild(messages); wrapper.appendChild(controls); container.appendChild(wrapper);
+    inputRow.appendChild(select);
+    inputRow.appendChild(input);
+    inputRow.appendChild(btnSend);
+
+    controls.appendChild(diceBar);
+    controls.appendChild(inputRow);
+
+    wrapper.appendChild(messages);
+    wrapper.appendChild(controls);
+    container.appendChild(wrapper);
+
+    // Scroll en bas auto
     messages.scrollTop = messages.scrollHeight;
 
-    function confirmSend() { const txt = input.value; if(txt) { sendMessage(txt, false); input.value = ''; } }
+    // --- FONCTIONS INTERNES D'ENVOI ---
+
+    function confirmSend() {
+        const txt = input.value;
+        if(txt) {
+            sendMessage(txt, false);
+            input.value = ''; // Reset input
+        }
+    }
+
     function sendMessage(text, isDice) {
         const target = select.value;
         const myId = currentUser.role === 'dm' ? 'dm' : currentUser.id;
         const senderName = currentUser.role === 'dm' ? 'MJ' : gameData.players.find(p => p.id === currentUser.id)?.name || 'Inconnu';
-        gameData.chat.push({ id: generateId(), sender: senderName, senderId: myId, text: text, target: target, timestamp: new Date().toISOString() });
+
+        gameData.chat.push({
+            id: generateId(),
+            sender: senderName,      // Nom affiché
+            senderId: myId,          // ID technique pour le filtrage
+            text: text,
+            target: target,          // 'global', 'dm', ou ID joueur
+            timestamp: new Date().toISOString()
+        });
         saveData();
     }
 }
 
-// 4. CARTES
+// 4. CARTES (ITEMS)
 function renderCardsModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
+
     document.getElementById('btn-create-card').onclick = () => {
         openFormModal('Nouvelle Carte', [
-            { name: 'name', label: 'Nom', value: '' }, { name: 'cost', label: 'Coût', type: 'number', value: '3' },
-            { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' }, { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
+            { name: 'name', label: 'Nom', value: '' },
+            { name: 'cost', label: 'Coût', type: 'number', value: '3' },
+            { name: 'img', label: 'Image URL', value: 'https://statsroyale.com/images/cards/full/mirror.png' },
+            { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
         ], (data) => {
             gameData.cards.push({ id: generateId(), name: data.name, cost: parseInt(data.cost), img: data.img, desc: data.desc });
             saveData(`Carte créée : ${data.name}`);
         });
     };
-    const grid = document.createElement('div'); grid.className = 'card-grid';
+
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    
     gameData.cards.forEach(c => {
-        const el = document.createElement('div'); el.className = 'clash-card'; el.style.cursor = 'pointer';
-        el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'"><h4>${c.name}</h4>`;
+        const el = document.createElement('div');
+        el.className = 'clash-card';
+        el.style.cursor = 'pointer';
+        el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
+        
         el.onclick = () => {
             openFormModal(`Modifier ${c.name}`, [
-                { name: 'name', label: 'Nom', value: c.name }, { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
-                { name: 'img', label: 'Image URL', value: c.img }, { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
+                { name: 'name', label: 'Nom', value: c.name },
+                { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
+                { name: 'img', label: 'Image URL', value: c.img },
+                { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
             ], (data) => {
                 c.name = data.name; c.cost = parseInt(data.cost); c.img = data.img; c.desc = data.desc;
                 saveData(`Carte modifiée : ${c.name}`);
@@ -538,184 +905,574 @@ function renderCardsModule(container) {
     container.appendChild(grid);
 }
 
-// 5. RELATIONS V2
+// 5. RELATIONS V2 (FIX COULEURS + HOVER)
 function renderRelationsModule(container) {
     if (!gameData.relations) gameData.relations = [];
     const entities = [...gameData.players, ...gameData.npcs];
-    if(entities.length < 2) return container.innerHTML = '<div class="panel">Il faut au moins 2 personnages.</div>';
-    
-    if (!selectedRelCharId || !entities.find(e => e.id === selectedRelCharId)) selectedRelCharId = entities[0].id;
+
+    if(entities.length < 2) {
+        return container.innerHTML = '<div class="panel" style="color:#333">Il faut au moins 2 personnages pour avoir des relations.</div>';
+    }
+
+    // Sélection par défaut
+    if (!selectedRelCharId || !entities.find(e => e.id === selectedRelCharId)) {
+        selectedRelCharId = entities[0].id;
+    }
+
     const selectedEntity = entities.find(e => e.id === selectedRelCharId);
 
+    // 1. EN-TÊTE (Avec couleurs forcées et Zone de Nom)
     container.innerHTML = `
         <h2 style="color:var(--cr-blue-dark); text-align:center; margin-bottom:5px;">Réseau d'Influence</h2>
-        <div id="rel-name-display" style="height:30px; line-height:30px; text-align:center; font-weight:900; color:var(--cr-blue); font-size:1.2rem; text-transform:uppercase; margin-bottom:5px;">${selectedEntity ? selectedEntity.name : ''}</div>
+        <p class="hint" style="color:#555; text-align:center; margin:0 0 10px 0;">
+            Sélectionnez un personnage pour voir son point de vue.
+        </p>
+        
+        <div id="rel-name-display" style="height:30px; line-height:30px; text-align:center; font-weight:900; color:var(--cr-blue); font-size:1.2rem; text-transform:uppercase; margin-bottom:5px;">
+            ${selectedEntity ? selectedEntity.name : ''}
+        </div>
     `;
 
-    const selector = document.createElement('div'); selector.className = 'rel-selector';
+    // 2. SÉLECTEUR (Haut)
+    const selector = document.createElement('div');
+    selector.className = 'rel-selector';
+    
     entities.forEach(e => {
-        const img = document.createElement('img'); img.src = e.avatar; img.className = `rel-avatar-select ${e.id === selectedRelCharId ? 'active' : ''}`;
+        const img = document.createElement('img');
+        img.src = e.avatar;
+        img.className = `rel-avatar-select ${e.id === selectedRelCharId ? 'active' : ''}`;
+        img.title = e.name; // Tooltip natif au cas où
         img.onerror = function() { this.src='https://placehold.co/60'; };
-        img.onmouseenter = () => { document.getElementById('rel-name-display').innerText = e.name; };
-        img.onmouseleave = () => { document.getElementById('rel-name-display').innerText = entities.find(x => x.id === selectedRelCharId)?.name || ''; };
-        img.onclick = () => { selectedRelCharId = e.id; renderRelationsModule(container); };
+        
+        // --- INTERACTION HOVER ---
+        img.onmouseenter = () => {
+            document.getElementById('rel-name-display').innerText = e.name;
+        };
+        img.onmouseleave = () => {
+            // Quand on quitte, on remet le nom du perso sélectionné
+            const current = entities.find(x => x.id === selectedRelCharId);
+            document.getElementById('rel-name-display').innerText = current ? current.name : '';
+        };
+
+        img.onclick = () => {
+            selectedRelCharId = e.id;
+            renderRelationsModule(container); // Recharger la vue
+        };
         selector.appendChild(img);
     });
     container.appendChild(selector);
 
-    const board = document.createElement('div'); board.className = 'rel-board';
-    const cols = { friendly: { title: '💚 Alliés / Amis', color: '#28a745', list: [] }, neutral:  { title: '😐 Neutres / Inconnus', color: '#6c757d', list: [] }, hostile:  { title: '❤️ Hostiles / Ennemis', color: '#dc3545', list: [] } };
+    // 3. LE TABLEAU DE BORD (3 Colonnes)
+    const board = document.createElement('div');
+    board.className = 'rel-board';
+
+    const cols = {
+        friendly: { title: '💚 Alliés / Amis', color: '#28a745', list: [] },
+        neutral:  { title: '😐 Neutres / Inconnus', color: '#6c757d', list: [] },
+        hostile:  { title: '❤️ Hostiles / Ennemis', color: '#dc3545', list: [] }
+    };
 
     entities.forEach(target => {
         if (target.id === selectedRelCharId) return; 
+
         const rel = gameData.relations.find(r => r.source === selectedRelCharId && r.target === target.id);
         let status = rel ? rel.status : 'neutral';
-        let displayCat = status === 'ally' ? 'friendly' : status;
+        
+        let displayCat = status;
+        if (status === 'ally') displayCat = 'friendly';
+
         cols[displayCat].list.push({ ...target, realStatus: status });
     });
 
     Object.keys(cols).forEach(key => {
         const colData = cols[key];
-        const colDiv = document.createElement('div'); colDiv.className = 'rel-column'; colDiv.style.borderTop = `4px solid ${colData.color}`;
+        const colDiv = document.createElement('div');
+        colDiv.className = 'rel-column';
+        colDiv.style.borderTop = `4px solid ${colData.color}`;
+        
+        // Couleur forcée ici aussi pour être sûr
         colDiv.innerHTML = `<h3 style="color:${colData.color}; margin-top:5px;">${colData.title}</h3>`;
-        if (colData.list.length === 0) colDiv.innerHTML += '<p style="opacity:0.5; font-size:0.8rem; text-align:center">- Vide -</p>';
-        else {
+        
+        if (colData.list.length === 0) {
+            colDiv.innerHTML += '<p style="opacity:0.5; font-size:0.8rem; text-align:center; color:#888;">- Vide -</p>';
+        } else {
             colData.list.forEach(char => {
-                const card = document.createElement('div'); card.className = 'rel-card'; card.style.borderLeftColor = colData.color;
-                let icon = '😐'; if(char.realStatus === 'friendly') icon = '🙂'; if(char.realStatus === 'ally') icon = '🛡️'; if(char.realStatus === 'hostile') icon = '😡';
-                card.innerHTML = `<img src="${char.avatar}" onerror="this.src='https://placehold.co/40'"><div style="flex:1; color:#333;"><strong>${char.name}</strong></div><div style="font-size:1.2rem">${icon}</div>`;
-                if(currentUser.role === 'dm') card.onclick = () => {
-                    const states = ['neutral', 'friendly', 'hostile', 'ally'];
-                    const nextStatus = states[(states.indexOf(char.realStatus) + 1) % states.length];
-                    const existingIndex = gameData.relations.findIndex(r => r.source === selectedRelCharId && r.target === char.id);
-                    if (existingIndex >= 0) gameData.relations[existingIndex].status = nextStatus;
-                    else gameData.relations.push({ source: selectedRelCharId, target: char.id, status: nextStatus });
-                    saveData();
-                };
+                const card = document.createElement('div');
+                card.className = 'rel-card';
+                card.style.borderLeftColor = colData.color;
+                
+                let icon = '😐';
+                if(char.realStatus === 'friendly') icon = '🙂';
+                if(char.realStatus === 'ally') icon = '🛡️';
+                if(char.realStatus === 'hostile') icon = '😡';
+
+                card.innerHTML = `
+                    <img src="${char.avatar}" onerror="this.src='https://placehold.co/40'">
+                    <div style="flex:1; color:#333;"> <strong>${char.name}</strong>
+                    </div>
+                    <div style="font-size:1.2rem">${icon}</div>
+                `;
+
+                if(currentUser.role === 'dm') {
+                    card.title = "Cliquez pour changer la relation";
+                    card.onclick = () => {
+                        cycleRelation(selectedRelCharId, char.id, char.realStatus);
+                    };
+                } else {
+                    card.style.cursor = 'default';
+                }
+
                 colDiv.appendChild(card);
             });
         }
         board.appendChild(colDiv);
     });
+
     container.appendChild(board);
 }
 
-// 6. QUÊTES
-function renderQuestsModule(container) {
-    container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-quest" class="btn btn-secondary" style="width:100%">+ Nouvelle Quête</button></div>';
-    document.getElementById('btn-new-quest').onclick = () => {
-        let npcOptions = [{value: 'board', label: '📢 Panneau (Aucun)'}];
-        gameData.npcs.forEach(n => { npcOptions.push({ value: n.id, label: `👤 ${n.name}` }); });
-        let playerOptions = []; gameData.players.forEach(p => { playerOptions.push({ value: p.id, label: `🎮 ${p.name}` }); });
-        if(playerOptions.length === 0) return alert("Il faut créer des joueurs !");
+// Helpers internes (nécessaires pour le fonctionnement)
 
+function getRelIcon(status) {
+    switch(status) {
+        case 'friendly': return '🙂';
+        case 'hostile': return '😡';
+        case 'ally': return '🛡️';
+        default: return '😐';
+    }
+}
+
+function cycleRelation(sId, tId, currentStatus) {
+    const states = ['neutral', 'friendly', 'hostile', 'ally'];
+    const nextIndex = (states.indexOf(currentStatus) + 1) % states.length;
+    const nextStatus = states[nextIndex];
+
+    // Mise à jour des données
+    const existingIndex = gameData.relations.findIndex(r => r.source === sId && r.target === tId);
+    
+    if (existingIndex >= 0) {
+        gameData.relations[existingIndex].status = nextStatus;
+    } else {
+        gameData.relations.push({ source: sId, target: tId, status: nextStatus });
+    }
+    
+    // Sauvegarde et Rafraîchissement immédiat
+    saveData(); 
+    // Note: render() est appelé automatiquement par saveData(), donc l'affichage se mettra à jour
+}
+
+// 6. QUÊTES (VERSION AMÉLIORÉE)
+function renderQuestsModule(container) {
+    // Bouton de création centré
+    container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-quest" class="btn btn-secondary" style="width:100%">+ Nouvelle Quête</button></div>';
+
+    // LOGIQUE DE CRÉATION
+    document.getElementById('btn-new-quest').onclick = () => {
+        // 1. Préparer la liste des PNJ (Commanditaires)
+        let npcOptions = [{value: 'board', label: '📢 Panneau d\'affichage (Aucun)'}];
+        gameData.npcs.forEach(n => {
+            npcOptions.push({ value: n.id, label: `👤 ${n.name}` });
+        });
+
+        // 2. Préparer la liste des Joueurs (Cibles)
+        let playerOptions = [];
+        gameData.players.forEach(p => {
+            playerOptions.push({ value: p.id, label: `🎮 ${p.name}` });
+        });
+
+        if(playerOptions.length === 0) return alert("Il faut créer des joueurs avant de donner des quêtes !");
+
+        // 3. Ouvrir la modale
         openFormModal('Nouvelle Quête', [
-            { name: 'title', label: 'Titre', value: '' }, { name: 'desc', label: 'Description', type: 'textarea', value: '' },
-            { name: 'reward', label: 'Récompense', value: '100 Or' }, { name: 'giver', label: 'Commanditaire', type: 'select', options: npcOptions, value: 'board' },
-            { name: 'assigned', label: 'Pour', type: 'select', options: playerOptions, value: playerOptions[0].value }
+            { name: 'title', label: 'Titre de la quête', value: '' },
+            { name: 'desc', label: 'Description / Instructions', type: 'textarea', value: '' },
+            { name: 'reward', label: 'Récompense (ex: 500 Or)', value: '100 Or' },
+            { name: 'giver', label: 'Commanditaire (PNJ)', type: 'select', options: npcOptions, value: 'board' },
+            { name: 'assigned', label: 'Assigner au joueur', type: 'select', options: playerOptions, value: playerOptions[0].value }
         ], (data) => {
-            gameData.quests.push({ id: generateId(), title: data.title, desc: data.desc, reward: data.reward, giverId: data.giver, assignedTo: data.assigned, status: 'active' });
+            gameData.quests.push({
+                id: generateId(),
+                title: data.title,
+                desc: data.desc,
+                reward: data.reward,
+                giverId: data.giver,
+                assignedTo: data.assigned,
+                status: 'active'
+            });
             saveData(`Nouvelle quête : ${data.title}`);
         });
     };
 
+    // LISTE DES QUÊTES
     const list = document.createElement('div');
-    if (gameData.quests.length === 0) list.innerHTML = '<p style="opacity:0.5; text-align:center">Aucune quête active.</p>';
-    else {
+    
+    if (gameData.quests.length === 0) {
+        list.innerHTML = '<p style="opacity:0.5; text-align:center">Aucune quête active.</p>';
+    } else {
         gameData.quests.forEach((q, index) => {
+            // Trouver les infos
             const assignedP = gameData.players.find(p => p.id === q.assignedTo);
-            let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
-            if (q.giverId !== 'board') { const npc = gameData.npcs.find(n => n.id === q.giverId); if (npc) giverImg = npc.avatar; }
-            const card = document.createElement('div'); card.className = 'quest-card';
-            card.innerHTML = `<img src="${giverImg}" class="quest-giver"><div class="quest-info"><div style="float:right"><button class="btn" style="background:red; font-size:0.7rem; padding:4px 8px;" onclick="window.deleteQuest(${index})">X</button></div><h4 class="quest-title">${q.title}</h4><p class="quest-desc">${q.desc || ''}</p><div style="display:flex; justify-content:space-between; margin-top:5px;"><span class="quest-reward">🎁 ${q.reward}</span><small style="color:var(--cr-blue)">Pour : ${assignedP ? assignedP.name : '?'}</small></div></div>`;
+            const pName = assignedP ? assignedP.name : 'Inconnu';
+            
+            // Trouver l'image du commanditaire
+            let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png'; // Image par défaut (Panneau)
+            if (q.giverId !== 'board') {
+                const npc = gameData.npcs.find(n => n.id === q.giverId);
+                if (npc) giverImg = npc.avatar;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'quest-card';
+            card.innerHTML = `
+                <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+                <div class="quest-info">
+                    <div style="float:right">
+                         <button class="btn" style="background:red; font-size:0.7rem; padding:4px 8px;" onclick="deleteQuest(${index})">X</button>
+                    </div>
+                    <h4 class="quest-title">${q.title}</h4>
+                    <p class="quest-desc">${q.desc || 'Aucune description.'}</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                        <span class="quest-reward">🎁 ${q.reward}</span>
+                        <small style="color:var(--cr-blue); font-weight:bold">Pour : ${pName}</small>
+                    </div>
+                </div>
+            `;
             list.appendChild(card);
         });
     }
+    
     container.appendChild(list);
 }
-window.deleteQuest = (index) => { if(confirm('Supprimer ?')) { gameData.quests.splice(index, 1); saveData(); } };
 
-// 7. JOURNAL (MODALE LARGE)
+// Fonction de suppression globale
+window.deleteQuest = (index) => {
+    if(confirm('Supprimer cette quête ? (Cela l\'effacera aussi chez le joueur)')) {
+        gameData.quests.splice(index, 1);
+        saveData();
+    }
+};
+
+function renderPlayerQuests(container, player) {
+    const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
+    
+    container.innerHTML = '<h2>Mes Quêtes</h2>';
+    
+    if (myQuests.length === 0) {
+        container.innerHTML += `
+            <div style="text-align:center; opacity:0.6; margin-top:40px;">
+                <img src="https://cdn-icons-png.flaticon.com/512/7486/7486747.png" width="64"><br>
+                <p>Aucune mission pour le moment.<br>Profite de la taverne !</p>
+            </div>`;
+        return;
+    }
+
+    myQuests.forEach(q => {
+        // Trouver l'image du commanditaire
+        let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
+        let giverName = 'Panneau d\'affichage';
+        
+        if (q.giverId && q.giverId !== 'board') {
+            const npc = gameData.npcs.find(n => n.id === q.giverId);
+            if (npc) {
+                giverImg = npc.avatar;
+                giverName = npc.name;
+            }
+        }
+
+        const card = document.createElement('div');
+        card.className = 'quest-card';
+        // Bordure bleue pour le joueur pour différencier
+        card.style.borderLeftColor = 'var(--cr-blue)'; 
+        
+        card.innerHTML = `
+            <img src="${giverImg}" class="quest-giver" onerror="this.src='https://via.placeholder.com/60'">
+            <div class="quest-info">
+                <small style="text-transform:uppercase; font-size:0.6rem; color:#888;">Commanditaire : ${giverName}</small>
+                <h4 class="quest-title">${q.title}</h4>
+                <p class="quest-desc">${q.desc || ''}</p>
+                <span class="quest-reward">💰 ${q.reward}</span>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// 7. JOURNAL NARRATIF (RÉSUMÉS DE SESSION)
 function renderJournalModule(container) {
+    // Initialisation des données si elles n'existent pas
     if (!gameData.journal) gameData.journal = [];
+
+    // --- VUE MJ : BOUTON AJOUTER ---
     if (currentUser.role === 'dm') {
         container.innerHTML = '<div style="margin-bottom:20px; text-align:center"><button id="btn-new-entry" class="btn btn-primary" style="width:100%">+ Nouveau Résumé</button></div>';
+        
         document.getElementById('btn-new-entry').onclick = () => {
-            openJournalModal('Nouveau Résumé', { title: '', date: new Date().toISOString().split('T')[0], content: '', participants: [] }, (data) => {
-                gameData.journal.unshift({ id: generateId(), ...data }); saveData(`Journal : ${data.title}`);
+            const today = new Date().toISOString().split('T')[0]; // Date du jour YYYY-MM-DD
+            
+            openJournalModal('Nouveau Résumé', {
+                title: '',
+                date: today,
+                content: '',
+                participants: [] // Vide par défaut
+            }, (data) => {
+                gameData.journal.unshift({
+                    id: generateId(),
+                    title: data.title,
+                    date: data.date,
+                    content: data.content,
+                    participants: data.participants
+                });
+                saveData(`Journal : ${data.title}`);
             });
         };
-    } else container.innerHTML = '<h2 style="margin-bottom:20px;">Chroniques</h2>';
+    } else {
+        container.innerHTML = '<h2 style="margin-bottom:20px;">Chroniques</h2>';
+    }
 
+    // --- LISTE DES ENTRÉES ---
     const list = document.createElement('div');
-    if (gameData.journal.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.6">Vide...</p>';
+    
+    if (gameData.journal.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.6">Le livre est encore vierge...</p>';
+    }
+
     gameData.journal.forEach((entry, index) => {
-        const entryDiv = document.createElement('div'); entryDiv.className = 'journal-entry';
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'journal-entry';
+        
+        // Génération des avatars des participants
         let avatarsHtml = '';
-        if (entry.participants) entry.participants.forEach(pid => { const p = gameData.players.find(x => x.id === pid); if(p) avatarsHtml += `<img src="${p.avatar}" class="participant-badge" title="${p.name}">`; });
-        entryDiv.innerHTML = `<div class="journal-header"><div style="display:flex; justify-content:space-between;"><span class="journal-date">📅 ${entry.date}</span><div class="journal-participants">${avatarsHtml}</div></div><h3 class="journal-title">${entry.title}</h3></div><div class="journal-content">${entry.content}</div>`;
-        if (currentUser.role === 'dm') {
-            const actions = document.createElement('div'); actions.style.cssText = 'margin-top:15px; text-align:right; border-top:1px solid #eee; padding-top:10px;';
-            actions.innerHTML = `<button class="btn" style="background:orange; font-size:0.7rem; padding:5px;" id="edit-j-${entry.id}">✏️</button> <button class="btn" style="background:red; font-size:0.7rem; padding:5px;" id="del-j-${entry.id}">🗑️</button>`;
-            entryDiv.appendChild(actions);
-            actions.querySelector(`#del-j-${entry.id}`).onclick = () => { if(confirm('Supprimer ?')) { gameData.journal.splice(index, 1); saveData(); } };
-            actions.querySelector(`#edit-j-${entry.id}`).onclick = () => { openJournalModal('Modifier', entry, (d) => { Object.assign(entry, d); saveData(); }); };
+        if (entry.participants && entry.participants.length > 0) {
+            entry.participants.forEach(pid => {
+                const p = gameData.players.find(x => x.id === pid);
+                if (p) {
+                    avatarsHtml += `<img src="${p.avatar}" class="participant-badge" title="${p.name}" onerror="this.src='https://placehold.co/20'">`;
+                }
+            });
         }
+
+        entryDiv.innerHTML = `
+            <div class="journal-header">
+                <div style="display:flex; justify-content:space-between;">
+                    <span class="journal-date">📅 ${entry.date}</span>
+                    <div class="journal-participants">${avatarsHtml}</div>
+                </div>
+                <h3 class="journal-title">${entry.title}</h3>
+            </div>
+            <div class="journal-content">${entry.content}</div>
+        `;
+
+        // Boutons d'édition pour le MJ
+        if (currentUser.role === 'dm') {
+            const actions = document.createElement('div');
+            actions.style.marginTop = '15px';
+            actions.style.textAlign = 'right';
+            actions.style.borderTop = '1px solid #eee';
+            actions.style.paddingTop = '10px';
+            
+            actions.innerHTML = `
+                <button class="btn" style="background:orange; font-size:0.7rem; padding:5px 10px;" id="edit-j-${entry.id}">✏️ Éditer</button>
+                <button class="btn" style="background:red; font-size:0.7rem; padding:5px 10px;" id="del-j-${entry.id}">🗑️</button>
+            `;
+            
+            entryDiv.appendChild(actions);
+
+            // Action Supprimer
+            actions.querySelector(`#del-j-${entry.id}`).onclick = () => {
+                if(confirm('Supprimer cette entrée définitivement ?')) {
+                    gameData.journal.splice(index, 1);
+                    saveData();
+                }
+            };
+
+            // Action Éditer
+            actions.querySelector(`#edit-j-${entry.id}`).onclick = () => {
+                openJournalModal('Modifier Résumé', entry, (updatedData) => {
+                    entry.title = updatedData.title;
+                    entry.date = updatedData.date;
+                    entry.content = updatedData.content;
+                    entry.participants = updatedData.participants;
+                    saveData();
+                });
+            };
+        }
+
         list.appendChild(entryDiv);
     });
+
     container.appendChild(list);
 }
 
-// 8. SYSTÈME
-function renderSystemModule(container) {
-    container.innerHTML = `<h2>Gestion</h2>`;
-    const exportBox = document.createElement('div'); exportBox.className = 'system-box';
-    exportBox.innerHTML = `<h3 style="color:var(--cr-blue)">💾 Sauvegarder</h3><button id="btn-backup" class="btn btn-primary">Télécharger JSON</button>`;
-    exportBox.querySelector('#btn-backup').onclick = () => {
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(gameData, null, 2)], { type: "application/json" }));
-        a.download = `backup-${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    };
-    container.appendChild(exportBox);
+// --- FONCTION SPÉCIALE POUR LE FORMULAIRE JOURNAL (Avec Checkboxes) ---
+// --- FONCTION SPÉCIALE JOURNAL (VERSION LARGE) ---
+function openJournalModal(title, initialData, onSave) {
+    const modal = document.getElementById('modal-form');
+    const contentBox = modal.querySelector('.modal-content'); // La boîte blanche
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
 
-    const importBox = document.createElement('div'); importBox.className = 'system-box'; importBox.style.border = '2px dashed #fcc22d';
-    importBox.innerHTML = `<h3 style="color:#d35400">⚠️ Restaurer</h3><div class="file-upload-wrapper"><button class="btn btn-secondary">Choisir JSON</button><input type="file" id="file-input" accept=".json"></div>`;
-    importBox.querySelector('#file-input').onchange = (e) => {
-        if(e.target.files[0] && confirm("Écraser la partie actuelle ?")) {
-            const r = new FileReader(); r.onload = (ev) => { try { gameData = JSON.parse(ev.target.result); saveData("Restoration système"); alert("Succès !"); } catch(err){alert("Erreur fichier");} }; r.readAsText(e.target.files[0]);
+    // 1. ACTIVATION DU MODE LARGE
+    contentBox.classList.add('modal-large');
+
+    // Réinitialisation standard
+    document.getElementById('form-title').innerText = title;
+    container.innerHTML = '';
+    saveBtn.style.display = 'inline-block';
+    saveBtn.innerText = 'Sauvegarder';
+
+    // 2. GÉNÉRATION DES CHAMPS
+    // Titre et Date sur la même ligne pour gagner de la place
+    container.innerHTML += `
+        <div style="display:flex; gap:10px;">
+            <div class="form-group" style="flex:2">
+                <label>Titre de la session</label>
+                <input type="text" id="j-title" value="${initialData.title}" placeholder="ex: La Caverne des Gobelins">
+            </div>
+            <div class="form-group" style="flex:1">
+                <label>Date</label>
+                <input type="date" id="j-date" value="${initialData.date}">
+            </div>
+        </div>
+    `;
+
+    // Participants
+    let checksHtml = '<div class="checkbox-group">';
+    gameData.players.forEach(p => {
+        const isChecked = initialData.participants.includes(p.id) ? 'checked' : '';
+        checksHtml += `
+            <label class="checkbox-item">
+                <input type="checkbox" class="j-part-check" value="${p.id}" ${isChecked}>
+                ${p.name}
+            </label>
+        `;
+    });
+    checksHtml += '</div>';
+
+    container.innerHTML += `
+        <div class="form-group">
+            <label>Participants présents</label>
+            ${checksHtml}
+        </div>
+    `;
+
+    // Contenu (Prendra toute la hauteur grâce au CSS)
+    container.innerHTML += `
+        <div class="form-group" style="height:100%; display:flex; flex-direction:column;">
+            <label>Récit de l'aventure</label>
+            <textarea id="j-content" style="flex:1; resize:none; padding:15px; font-family:'Georgia', serif; font-size:1.1rem; line-height:1.6;" placeholder="Il était une fois...">${initialData.content}</textarea>
+        </div>
+    `;
+
+    // Affichage
+    modal.style.display = 'flex';
+
+    // FONCTION DE NETTOYAGE (Pour remettre la modale normale après)
+    const closeModal = () => {
+        contentBox.classList.remove('modal-large'); // Retirer le mode large
+        modal.style.display = 'none';
+    };
+
+    // Gestion Fermeture (Croix)
+    modal.querySelector('.close-form').onclick = closeModal;
+
+    // Gestion Sauvegarde
+    saveBtn.onclick = null;
+    saveBtn.onclick = () => {
+        const titleVal = document.getElementById('j-title').value;
+        const dateVal = document.getElementById('j-date').value;
+        const contentVal = document.getElementById('j-content').value;
+        
+        const selectedParticipants = [];
+        document.querySelectorAll('.j-part-check:checked').forEach(box => {
+            selectedParticipants.push(box.value);
+        });
+
+        if (titleVal && contentVal) {
+            onSave({
+                title: titleVal,
+                date: dateVal,
+                content: contentVal,
+                participants: selectedParticipants
+            });
+            closeModal(); // Ferme et nettoie
+        } else {
+            alert("Le titre et le contenu sont obligatoires.");
         }
     };
-    container.appendChild(importBox);
 }
 
-// --- PLAYER MOBILE MODULES ---
+// MODULE JOUEUR: PROFIL & STATS (INVENTAIRE VERROUILLÉ)
+// MODULE JOUEUR: PROFIL (RESSOURCES DYNAMIQUES)
 function renderPlayerStats(container, p) {
+    // Génération dynamique des pilules
     let pillsHtml = '';
     if (gameData.resourceTypes) {
         gameData.resourceTypes.forEach(res => {
             const val = p[res.id] !== undefined ? p[res.id] : 0;
-            pillsHtml += `<div class="res-pill"><div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div><span style="color:${res.color}; filter:brightness(1.5)">${val}</span></div>`;
+            // Calcul d'une couleur plus claire pour le texte
+            pillsHtml += `
+                <div class="res-pill">
+                    <div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div>
+                    <span style="color:${res.color}; filter:brightness(1.5)">${val}</span>
+                </div>
+            `;
         });
     }
-    const header = document.createElement('div'); header.className = 'profile-header';
-    header.innerHTML = `<img src="${p.avatar}" class="profile-avatar"><div class="profile-name">${p.name}</div><div class="resource-row" style="flex-wrap:wrap">${pillsHtml}</div><div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">${p.desc || ''}</div>`;
+
+    const header = document.createElement('div');
+    header.className = 'profile-header';
+    header.innerHTML = `
+        <img src="${p.avatar}" class="profile-avatar" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/147/147144.png'">
+        <div class="profile-name">${p.name}</div>
+        <div class="resource-row" style="flex-wrap:wrap">
+            ${pillsHtml}
+        </div>
+        <div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">
+            ${p.desc || 'Un héros sans histoire...'}
+        </div>
+    `;
     container.appendChild(header);
 
-    const dashboard = document.createElement('div'); dashboard.className = 'player-dashboard';
+    // Le reste ne change pas (Inventaire lecture seule + Deck)
+    const dashboard = document.createElement('div');
+    dashboard.className = 'player-dashboard';
+    
     dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
-    const invInput = document.createElement('textarea'); invInput.className = 'inventory-box';
-    invInput.value = p.inventory || 'Votre sac est vide.'; invInput.readOnly = true; invInput.style.cssText = 'background:#e6e6e6; color:#555; cursor:default; outline:none;';
+    const invInput = document.createElement('textarea');
+    invInput.className = 'inventory-box';
+    invInput.value = p.inventory || 'Votre sac est vide.';
+    invInput.readOnly = true; 
+    invInput.style.backgroundColor = '#e6e6e6'; 
+    invInput.style.color = '#555';
+    invInput.style.cursor = 'default';
+    invInput.style.outline = 'none';
     dashboard.appendChild(invInput);
 
-    dashboard.innerHTML += `<h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck</h3><p class="play-hint">Clique pour jouer !</p>`;
-    const deckGrid = document.createElement('div'); deckGrid.className = 'card-grid player-deck';
-    if(p.deck.length === 0) deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Vide.</p>';
-    else {
+    dashboard.innerHTML += `
+        <h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck de Combat</h3>
+        <p class="play-hint">Clique sur une carte pour la jouer dans le chat !</p>
+    `;
+
+    const deckGrid = document.createElement('div');
+    deckGrid.className = 'card-grid player-deck';
+    if(p.deck.length === 0) {
+        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Deck vide. Demande au MJ !</p>';
+    } else {
         p.deck.forEach(cardId => {
             const c = gameData.cards.find(x => x.id === cardId);
             if(c) {
-                const el = document.createElement('div'); el.className = 'clash-card';
-                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
-                el.onclick = () => { if(confirm(`Jouer "${c.name}" ?`)) playCardAction(p.name, c); };
+                const el = document.createElement('div');
+                el.className = 'clash-card';
+                el.innerHTML = `
+                    <div class="cost">${c.cost}</div>
+                    <img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
+                    <h4>${c.name}</h4>
+                `;
+                el.onclick = () => {
+                    if(confirm(`Utiliser la carte "${c.name}" ?\nCela l'affichera dans le chat.`)) {
+                        playCardAction(p.name, c);
+                    }
+                };
                 deckGrid.appendChild(el);
             }
         });
@@ -724,176 +1481,437 @@ function renderPlayerStats(container, p) {
     container.appendChild(dashboard);
 }
 
-function renderPlayerQuests(container, player) {
-    const myQuests = gameData.quests.filter(q => q.assignedTo === player.id);
-    container.innerHTML = '<h2>Mes Quêtes</h2>';
-    if (myQuests.length === 0) return container.innerHTML += '<div style="text-align:center; opacity:0.6; margin-top:40px;"><p>Aucune mission.</p></div>';
-    myQuests.forEach(q => {
-        let giverImg = 'https://cdn-icons-png.flaticon.com/512/3209/3209995.png';
-        if (q.giverId && q.giverId !== 'board') { const npc = gameData.npcs.find(n => n.id === q.giverId); if (npc) giverImg = npc.avatar; }
-        const card = document.createElement('div'); card.className = 'quest-card'; card.style.borderLeftColor = 'var(--cr-blue)';
-        card.innerHTML = `<img src="${giverImg}" class="quest-giver"><div class="quest-info"><h4 class="quest-title">${q.title}</h4><p class="quest-desc">${q.desc || ''}</p><span class="quest-reward">💰 ${q.reward}</span></div>`;
-        container.appendChild(card);
+// Fonction pour "Jouer" une carte (Envoyer dans le chat)
+function playCardAction(playerName, card) {
+    // On construit un message HTML spécial
+    const cardHtml = `
+        <div style="text-align:center; margin-top:5px; border:2px solid #333; border-radius:8px; overflow:hidden; background:white;">
+            <img src="${card.img}" style="width:100%; height:100px; object-fit:cover; display:block;">
+            <div style="padding:5px; background:#f0f0f0;">
+                <strong style="color:var(--cr-blue-dark)">${card.name}</strong><br>
+                <small>${card.desc}</small>
+            </div>
+        </div>
+    `;
+
+    gameData.chat.push({
+        id: generateId(),
+        sender: playerName,
+        senderId: currentUser.id, // Important pour le styling
+        text: `⚔️ Je lance <b>${card.name}</b> ! ${cardHtml}`,
+        target: 'global',
+        timestamp: new Date().toISOString()
     });
+    saveData();
+    
+    // Petit feedback visuel : on bascule sur l'onglet chat
+    switchTab(currentUser.role === 'dm' ? 'chat' : 'p-chat', currentUser.role);
 }
 
-// --- GLOBALS HELPERS ---
-function openFormModal(title, fields, onSave) {
+function showQRCode() {
+    const modal = document.getElementById('modal-qr');
+    const modalContent = modal.querySelector('.modal-content');
+    
+    // On recrée le HTML à chaque ouverture pour être sûr d'avoir la liste à jour
+    modalContent.innerHTML = `
+        <span class="close-modal" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px;">&times;</span>
+        <h3>Rejoindre la partie</h3>
+        
+        <div style="margin-bottom:15px; text-align:left;">
+            <label>Qui connecter ?</label>
+            <select id="qr-target-select" style="padding:10px; width:100%; margin-top:5px;">
+                <option value="new">✨ Nouveau Joueur (Générique)</option>
+            </select>
+        </div>
+
+        <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
+        <p id="qr-hint" style="font-size:0.9rem; color:#444;">Scanner pour rejoindre.</p>
+    `;
+
+    const select = document.getElementById('qr-target-select');
+    
+    // Remplissage de la liste des joueurs
+    if (gameData.players && gameData.players.length > 0) {
+        gameData.players.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.innerText = `👤 ${p.name}`;
+            select.appendChild(opt);
+        });
+    }
+
+    // Fonction de génération
+    const generateQR = () => {
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ''; 
+
+        const baseUrl = window.location.href.split('?')[0];
+        const session = document.getElementById('session-input').value;
+        const selectedId = select.value;
+
+        let targetUrl = `${baseUrl}?session=${session}`;
+
+        if (selectedId !== 'new') {
+            targetUrl += `&role=player&id=${selectedId}`;
+            const pName = gameData.players.find(p=>p.id===selectedId)?.name || 'Joueur';
+            document.getElementById('qr-hint').innerHTML = `Connexion directe : <b>${pName}</b>`;
+        } else {
+            document.getElementById('qr-hint').innerText = "Lien d'invitation générique.";
+        }
+
+        new QRCode(qrContainer, {
+            text: targetUrl,
+            width: 200,
+            height: 200
+        });
+    };
+
+    // Events
+    select.onchange = generateQR;
+    modal.querySelector('.close-modal').onclick = () => modal.style.display = 'none';
+
+    modal.style.display = 'flex';
+    generateQR();
+}
+
+// --- GESTIONNAIRE DE DECK (MJ) - VERSION ROBUSTE ---
+function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
-    saveBtn.style.display = 'inline-block'; saveBtn.innerText = 'Sauvegarder';
-    document.getElementById('form-title').innerText = title; container.innerHTML = '';
-
-    fields.forEach(f => {
-        const div = document.createElement('div'); div.className = 'form-group';
-        div.innerHTML = `<label>${f.label}</label>`;
-        let input;
-        if (f.type === 'select') {
-            input = document.createElement('select');
-            f.options.forEach(opt => { const o = document.createElement('option'); o.value = opt.value; o.innerText = opt.label; if(opt.value === f.value) o.selected = true; input.appendChild(o); });
-        } else if (f.type === 'textarea') {
-            input = document.createElement('textarea'); input.rows = 3; input.value = (f.value != null) ? f.value : '';
-        } else {
-            input = document.createElement('input'); input.type = f.type || 'text'; input.value = (f.value != null) ? f.value : '';
-        }
-        input.id = `field-${f.name}`; div.appendChild(input); container.appendChild(div);
-    });
-
-    currentFormCallback = onSave;
-    modal.style.display = 'flex';
-    modal.querySelector('.close-form').onclick = () => modal.style.display = 'none';
-    saveBtn.onclick = () => {
-        const result = {}; fields.forEach(f => { result[f.name] = document.getElementById(`field-${f.name}`).value; });
-        currentFormCallback(result); modal.style.display = 'none';
-    };
-}
-
-function openJournalModal(title, initialData, onSave) {
-    const modal = document.getElementById('modal-form'); const container = document.getElementById('form-fields'); const saveBtn = document.getElementById('btn-form-save');
-    modal.querySelector('.modal-content').classList.add('modal-large');
-    document.getElementById('form-title').innerText = title; container.innerHTML = ''; saveBtn.style.display = 'inline-block';
     
-    let checksHtml = '<div class="checkbox-group">';
-    gameData.players.forEach(p => { const isChecked = initialData.participants.includes(p.id) ? 'checked' : ''; checksHtml += `<label class="checkbox-item"><input type="checkbox" class="j-part-check" value="${p.id}" ${isChecked}>${p.name}</label>`; });
-    checksHtml += '</div>';
+    // On garde l'ID en mémoire
+    const targetId = entityArg.id;
 
-    container.innerHTML = `<div style="display:flex; gap:10px;"><div class="form-group" style="flex:2"><label>Titre</label><input type="text" id="j-title" value="${initialData.title}"></div><div class="form-group" style="flex:1"><label>Date</label><input type="date" id="j-date" value="${initialData.date}"></div></div><div class="form-group"><label>Participants</label>${checksHtml}</div><div class="form-group" style="height:100%; display:flex; flex-direction:column;"><label>Récit</label><textarea id="j-content" style="flex:1; resize:none; padding:15px; font-family:'Georgia', serif;">${initialData.content}</textarea></div>`;
+    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
     modal.style.display = 'flex';
-    const close = () => { modal.querySelector('.modal-content').classList.remove('modal-large'); modal.style.display = 'none'; };
-    modal.querySelector('.close-form').onclick = close;
-    saveBtn.onclick = () => {
-        const parts = []; document.querySelectorAll('.j-part-check:checked').forEach(b => parts.push(b.value));
-        if(document.getElementById('j-title').value) { onSave({ title: document.getElementById('j-title').value, date: document.getElementById('j-date').value, content: document.getElementById('j-content').value, participants: parts }); close(); }
-    };
-}
 
-function openDeckManager(entityArg) {
-    const modal = document.getElementById('modal-form'); const container = document.getElementById('form-fields'); const saveBtn = document.getElementById('btn-form-save');
-    const targetId = entityArg.id; saveBtn.style.display = 'none'; modal.style.display = 'flex'; document.getElementById('form-title').innerText = "Deck Manager";
-
+    // Fonction qui redessine le contenu de la fenêtre
     const renderManager = () => {
+        // 1. On récupère la version la plus récente du personnage
         const freshEntity = findEntityById(targetId);
-        if (!freshEntity) return modal.style.display = 'none';
-        container.innerHTML = '';
         
-        const sec1 = document.createElement('div'); sec1.innerHTML = '<h4 style="color:var(--cr-blue)">Possédé</h4>';
-        const list1 = document.createElement('div'); list1.className = 'deck-manager-section mini-card-grid';
-        if(!freshEntity.deck) freshEntity.deck = [];
-        freshEntity.deck.forEach((cardId, index) => {
-            const card = gameData.cards.find(c => c.id === cardId);
-            if(card) {
-                const el = document.createElement('div'); el.className = 'mini-card'; el.style.borderColor = 'red';
-                el.innerHTML = `<img src="${card.img}"><div>${card.name}</div><div class="action-overlay">✖</div>`;
-                el.onclick = () => { freshEntity.deck.splice(index, 1); renderManager(); syncGameData(gameData); };
-                list1.appendChild(el);
-            }
-        });
-        sec1.appendChild(list1); container.appendChild(sec1);
+        // Sécurité : si le perso n'existe plus
+        if (!freshEntity) return modal.style.display = 'none';
 
-        const sec2 = document.createElement('div'); sec2.innerHTML = '<h4 style="color:green">Bibliothèque</h4>';
-        const list2 = document.createElement('div'); list2.className = 'deck-manager-section mini-card-grid';
+        // Mise à jour du titre
+        const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
+        document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
+        
+        container.innerHTML = ''; 
+
+        // --- SECTION 1 : CARTES POSSÉDÉES ---
+        const currentSection = document.createElement('div');
+        currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:var(--cr-blue)">Inventaire (Cliquer pour retirer)</h4>';
+        
+        const currentList = document.createElement('div');
+        currentList.className = 'deck-manager-section mini-card-grid';
+        
+        if (!freshEntity.deck) freshEntity.deck = [];
+
+        if (freshEntity.deck.length === 0) {
+            currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%; padding:10px;">Le deck est vide.</p>';
+        } else {
+            freshEntity.deck.forEach((cardId, index) => {
+                const card = gameData.cards.find(c => c.id === cardId);
+                if (card) {
+                    const el = document.createElement('div');
+                    el.className = 'mini-card';
+                    el.style.borderColor = '#ff4d4d'; // Rouge
+                    el.title = "Retirer";
+                    el.innerHTML = `
+                        <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
+                        <div style="font-size:0.6rem; padding:2px; white-space:nowrap; overflow:hidden;">${card.name}</div>
+                        <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
+                    `;
+                    
+                    // ACTION : RETIRER
+                    el.onclick = () => {
+                        freshEntity.deck.splice(index, 1); // 1. Modifie le tableau local
+                        renderManager();                   // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
+                        window.syncGameData(gameData);            // 3. Sauvegarde silencieuse
+                    };
+                    currentList.appendChild(el);
+                }
+            });
+        }
+        currentSection.appendChild(currentList);
+        container.appendChild(currentSection);
+
+        // --- SECTION 2 : AJOUTER DES CARTES ---
+        const librarySection = document.createElement('div');
+        librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Bibliothèque (Cliquer pour ajouter)</h4>';
+        
+        const libraryList = document.createElement('div');
+        libraryList.className = 'deck-manager-section mini-card-grid';
+        
         gameData.cards.forEach(card => {
-            const el = document.createElement('div'); el.className = 'mini-card'; el.style.borderColor = 'green';
-            el.innerHTML = `<img src="${card.img}"><div>${card.name}</div><div class="action-overlay">➕</div>`;
-            el.onclick = () => { freshEntity.deck.push(card.id); renderManager(); syncGameData(gameData); };
-            list2.appendChild(el);
+            const el = document.createElement('div');
+            el.className = 'mini-card';
+            el.style.borderColor = '#4caf50'; // Vert
+            el.title = "Ajouter";
+            el.innerHTML = `
+                <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
+                <div style="font-size:0.6rem; padding:2px; white-space:nowrap; overflow:hidden;">${card.name}</div>
+                <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
+            `;
+            
+            // ACTION : AJOUTER
+            el.onclick = () => {
+                freshEntity.deck.push(card.id); // 1. Modifie le tableau local
+                renderManager();                // 2. Rafraîchit la fenêtre IMMÉDIATEMENT
+                window.syncGameData(gameData);         // 3. Sauvegarde silencieuse
+            };
+            libraryList.appendChild(el);
         });
-        sec2.appendChild(list2); container.appendChild(sec2);
+        
+        librarySection.appendChild(libraryList);
+        container.appendChild(librarySection);
     };
+
+    // Premier affichage
     renderManager();
-    modal.querySelector('.close-form').onclick = () => { saveBtn.style.display = 'inline-block'; modal.style.display = 'none'; render(); };
-}
 
-function openResourceManager() {
-    const modal = document.getElementById('modal-form'); const container = document.getElementById('form-fields');
-    document.getElementById('form-title').innerText = 'Ressources'; document.getElementById('btn-form-save').style.display = 'none'; modal.style.display = 'flex';
-    const refresh = () => {
-        container.innerHTML = '<button id="btn-new-res" class="btn btn-primary" style="margin-bottom:10px">+ Ressource</button>';
-        container.querySelector('#btn-new-res').onclick = () => {
-            modal.style.display = 'none'; openFormModal('Nouveau', [{name:'name', label:'Nom'}, {name:'icon', label:'Icone'}, {name:'color', label:'Couleur'}, {name:'id', label:'ID (minuscule)'}], (d) => {
-                if(!gameData.resourceTypes.find(r=>r.id===d.id)) { gameData.resourceTypes.push(d); saveData(); setTimeout(openResourceManager, 100); }
-            });
-        };
-        gameData.resourceTypes.forEach((res, i) => {
-            const d = document.createElement('div'); d.className = 'panel'; d.style.marginBottom='5px'; d.style.display='flex'; d.style.justifyContent='space-between';
-            d.innerHTML = `<span>${res.icon} ${res.name}</span><button class="btn" style="background:red;padding:5px;" id="del-res-${i}">🗑️</button>`;
-            d.querySelector('button').onclick = () => { gameData.resourceTypes.splice(i, 1); saveData(); refresh(); };
-            container.appendChild(d);
-        });
+    // Gestion de fermeture
+    modal.querySelector('.close-form').onclick = () => {
+        saveBtn.style.display = 'inline-block';
+        modal.style.display = 'none';
+        render(); // Un dernier rafraîchissement global pour être sûr
     };
-    refresh();
-    modal.querySelector('.close-form').onclick = () => { document.getElementById('btn-form-save').style.display = 'inline-block'; modal.style.display = 'none'; render(); };
 }
 
-function openMapManager() {
-    const modal = document.getElementById('modal-form'); const container = document.getElementById('form-fields');
-    document.getElementById('form-title').innerText = 'Atlas'; document.getElementById('btn-form-save').style.display = 'none'; modal.style.display = 'flex';
-    const refresh = () => {
-        container.innerHTML = '<button id="btn-new-map" class="btn btn-primary" style="margin-bottom:10px">+ Carte</button>';
-        container.querySelector('#btn-new-map').onclick = () => {
-            modal.style.display = 'none'; openFormModal('Nouvelle Carte', [{name:'name', label:'Nom'}, {name:'url', label:'URL'}, {name:'desc', label:'Desc', type:'textarea'}], (d) => {
-                gameData.maps.push({id:generateId(), name:d.name, url:d.url||'./assets/map.png', desc:d.desc}); saveData(); setTimeout(openMapManager, 100);
+// Remplace la fonction updateLocalData existante
+function updateLocalData(newData) {
+    // Si c'est le tout premier chargement de la page
+    if (isFirstLoad) {
+        gameData = newData;
+        // On initialise la taille du deck sans déclencher d'animation
+        if (currentUser.role === 'player') {
+            const me = newData.players.find(p => p.id === currentUser.id);
+            if (me) prevDeckSize = me.deck.length;
+        }
+        isFirstLoad = false; // On désactive le drapeau pour les prochaines fois
+        render();
+        return; // On arrête là pour cette fois
+    }
+
+    // Détection pour le Joueur : Est-ce que mon deck a grandi ?
+    if (currentUser.role === 'player') {
+        const meNew = newData.players.find(p => p.id === currentUser.id);
+        
+        // On s'assure que prevDeckSize est un nombre
+        if (typeof prevDeckSize === 'undefined') prevDeckSize = 0;
+
+        if (meNew && meNew.deck.length > prevDeckSize) {
+            console.log("🎁 NOUVELLE CARTE DÉTECTÉE !");
+            const newCardId = meNew.deck[meNew.deck.length - 1];
+            // Petite sécurité : on vérifie que la carte existe vraiment
+            if(newCardId) triggerChestAnimation(newCardId);
+        }
+        
+        if (meNew) prevDeckSize = meNew.deck.length;
+    }
+
+    gameData = newData;
+    render();
+}
+
+// Remplace la fonction triggerChestAnimation existante
+function triggerChestAnimation(newCardId) {
+    const overlay = document.getElementById('chest-overlay');
+    const display = document.getElementById('new-card-display');
+    
+    const card = gameData.cards.find(c => c.id === newCardId);
+    
+    if(!card) return;
+
+    display.innerHTML = `
+        <div class="clash-card" style="transform: scale(1.1); box-shadow: 0 0 30px white; margin: 0 auto; background: white;">
+            <div class="cost">${card.cost}</div>
+            <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
+            <h4>${card.name}</h4>
+        </div>
+        <p style="color:#ffd700; text-shadow:0 2px 0 black; line-height:1.4;">
+            Vous avez obtenu :<br><strong style="font-size:1.2rem; text-transform:uppercase">${card.name}</strong>
+        </p>
+    `;
+    
+    overlay.classList.remove('hidden');
+    
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+    }, 5000);
+    
+    overlay.onclick = () => overlay.classList.add('hidden');
+}
+
+// 8. SYSTÈME (SAUVEGARDE & IMPORT)
+function renderSystemModule(container) {
+    container.innerHTML = `<h2>Gestion de la Session</h2>`;
+
+    // 1. BLOC EXPORT (Sauvegarder)
+    const exportBox = document.createElement('div');
+    exportBox.className = 'system-box';
+    exportBox.innerHTML = `
+        <h3 style="color:var(--cr-blue)">💾 Sauvegarder la partie</h3>
+        <p>Téléchargez un fichier .json contenant toutes les données actuelles (Joueurs, Cartes, Map, Chat...).</p>
+        <button id="btn-backup" class="btn btn-primary">Télécharger la Sauvegarde</button>
+    `;
+    
+    exportBox.querySelector('#btn-backup').onclick = () => {
+        const dataStr = JSON.stringify(gameData, null, 2); // Beau JSON
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        // Création d'un lien invisible pour déclencher le téléchargement
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().split('T')[0];
+        a.download = `manager-royale-backup-${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+    container.appendChild(exportBox);
+
+    // 2. BLOC IMPORT (Restaurer)
+    const importBox = document.createElement('div');
+    importBox.className = 'system-box';
+    importBox.style.border = '2px dashed #fcc22d'; // Bordure dorée attention
+    importBox.innerHTML = `
+        <h3 style="color:#d35400">⚠️ Restaurer une sauvegarde</h3>
+        <p>Attention : Cela <strong>écrasera</strong> toutes les données actuelles de la session pour tous les joueurs !</p>
+        
+        <div class="file-upload-wrapper">
+            <button class="btn btn-secondary">Choisir un fichier .JSON</button>
+            <input type="file" id="file-input" accept=".json">
+        </div>
+    `;
+
+    importBox.querySelector('#file-input').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (confirm("Êtes-vous sûr de vouloir écraser la partie actuelle avec ce fichier ? Cette action est irréversible.")) {
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Vérification sommaire que c'est bien un fichier Manager Royale
+                    if (!importedData.players || !importedData.config) {
+                        throw new Error("Format de fichier invalide.");
+                    }
+
+                    // Mise à jour locale
+                    gameData = importedData;
+                    
+                    // Envoi à Supabase (propage à tout le monde)
+                    saveData("♻️ Restauration du système effectuée.");
+                    
+                    alert("Succès ! La partie a été restaurée.");
+                    render(); // Rafraîchir l'interface
+                    
+                } catch (err) {
+                    alert("Erreur : Le fichier est corrompu ou invalide.\n" + err.message);
+                }
+            };
+            
+            reader.readAsText(file);
+        } else {
+            // Reset l'input si annulé
+            e.target.value = ''; 
+        }
+    };
+    container.appendChild(importBox);
+
+    // 3. BLOC INFO TECHNIQUE
+    const infoBox = document.createElement('div');
+    infoBox.style.textAlign = 'center';
+    infoBox.style.opacity = '0.6';
+    infoBox.style.marginTop = '20px';
+    infoBox.innerHTML = `<small>Session ID : <strong>${document.getElementById('session-input').value}</strong></small>`;
+    container.appendChild(infoBox);
+}
+
+// --- GESTIONNAIRE DE RESSOURCES (MJ) ---
+function openResourceManager() {
+    const modal = document.getElementById('modal-form');
+    const container = document.getElementById('form-fields');
+    const saveBtn = document.getElementById('btn-form-save');
+
+    saveBtn.style.display = 'none';
+    modal.style.display = 'flex';
+    document.getElementById('form-title').innerText = 'Types de Ressources';
+
+    const renderList = () => {
+        container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-res" class="btn btn-primary">+ Nouvelle Ressource</button></div>';
+
+        // Action Créer
+        container.querySelector('#btn-new-res').onclick = () => {
+            modal.style.display = 'none';
+            openFormModal('Nouvelle Ressource', [
+                { name: 'name', label: 'Nom (ex: Mana)', value: '' },
+                { name: 'icon', label: 'Emoji/Icone (ex: 🧿)', value: '🧿' },
+                { name: 'color', label: 'Couleur (Hex ou nom)', value: '#3498db' },
+                { name: 'id', label: 'ID Technique (minuscules, sans espace)', value: 'mana' }
+            ], (data) => {
+                // On vérifie que l'ID est unique
+                if(gameData.resourceTypes.find(r => r.id === data.id)) return alert("Cet ID existe déjà !");
+                
+                gameData.resourceTypes.push({
+                    id: data.id.toLowerCase().replace(/\s/g, ''),
+                    name: data.name,
+                    icon: data.icon,
+                    color: data.color
+                });
+                saveData(`Ajout ressource : ${data.name}`);
+                setTimeout(openResourceManager, 100);
             });
         };
-        const list = document.createElement('div'); list.style.maxHeight='300px'; list.style.overflowY='auto';
-        gameData.maps.forEach(m => {
-            const row = document.createElement('div'); row.className = 'panel'; row.style.marginBottom='10px'; row.style.background = m.id===gameData.activeMapId?'#e3f2fd':'white';
-            row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>${m.name}</strong><img src="${m.url}" style="width:40px;height:30px;object-fit:cover;background:#eee" onerror="this.style.display='none'"></div><div style="text-align:right;margin-top:5px;"><button class="btn btn-primary" style="padding:5px" onclick="loadMap('${m.id}')">Charger</button> <button class="btn" style="padding:5px;background:red" onclick="delMap('${m.id}')">🗑️</button></div>`;
+
+        const list = document.createElement('div');
+        list.style.maxHeight = '400px'; 
+        list.style.overflowY = 'auto';
+
+        gameData.resourceTypes.forEach((res, index) => {
+            const row = document.createElement('div');
+            row.className = 'panel';
+            row.style.marginBottom = '10px';
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.borderLeft = `5px solid ${res.color}`;
+
+            row.innerHTML = `
+                <div>
+                    <span style="font-size:1.5rem; margin-right:10px;">${res.icon}</span>
+                    <strong>${res.name}</strong> <small style="color:#888">(${res.id})</small>
+                </div>
+                <div>
+                    <button class="btn" style="background:red; font-size:0.7rem; padding:5px;" id="del-res-${index}">🗑️</button>
+                </div>
+            `;
+
+            row.querySelector(`#del-res-${index}`).onclick = () => {
+                if(confirm(`Supprimer la ressource "${res.name}" ?\nCela ne supprimera pas les valeurs stockées sur les joueurs, mais l'affichage disparaîtra.`)) {
+                    gameData.resourceTypes.splice(index, 1);
+                    saveData();
+                    renderList();
+                }
+            };
             list.appendChild(row);
         });
         container.appendChild(list);
     };
-    window.loadMap = (id) => { gameData.activeMapId = id; gameData.config.mapUrl = gameData.maps.find(m=>m.id===id).url; saveData(); modal.style.display='none'; };
-    window.delMap = (id) => { if(gameData.maps.length>1 && confirm('Supprimer ?')) { gameData.maps = gameData.maps.filter(x=>x.id!==id); saveData(); refresh(); }};
-    refresh();
-    modal.querySelector('.close-form').onclick = () => { document.getElementById('btn-form-save').style.display = 'inline-block'; modal.style.display = 'none'; };
-}
 
-function showQRCode() {
-    const modal = document.getElementById('modal-qr'); modal.querySelector('.modal-content').innerHTML = `<span class="close-modal" style="position:absolute;right:15px;top:10px;cursor:pointer;font-size:24px;">&times;</span><h3>QR Code</h3><select id="qr-select" style="width:100%;padding:10px;margin-bottom:20px;"><option value="new">Nouveau</option></select><div id="qrcode" style="display:flex;justify-content:center;"></div>`;
-    const sel = document.getElementById('qr-select');
-    gameData.players.forEach(p => { const o = document.createElement('option'); o.value=p.id; o.innerText=p.name; sel.appendChild(o); });
-    const gen = () => {
-        document.getElementById('qrcode').innerHTML = '';
-        let url = `${window.location.href.split('?')[0]}?session=${document.getElementById('session-input').value}`;
-        if(sel.value !== 'new') url += `&role=player&id=${sel.value}`;
-        new QRCode(document.getElementById('qrcode'), {text:url, width:200, height:200});
+    renderList();
+
+    modal.querySelector('.close-form').onclick = () => {
+        saveBtn.style.display = 'inline-block';
+        modal.style.display = 'none';
+        render(); // Rafraîchir l'interface globale
     };
-    sel.onchange = gen;
-    modal.querySelector('.close-modal').onclick = () => modal.style.display = 'none';
-    modal.style.display = 'flex'; gen();
-}
-
-function playCardAction(playerName, card) {
-    const html = `<div style="text-align:center;margin-top:5px;border:1px solid #333;border-radius:5px;overflow:hidden;background:white;"><img src="${card.img}" style="width:100%;height:100px;object-fit:cover;"><div style="padding:5px;"><strong>${card.name}</strong><br><small>${card.desc}</small></div></div>`;
-    gameData.chat.push({ id: generateId(), sender: playerName, senderId: currentUser.id, text: `⚔️ Lance <b>${card.name}</b> ! ${html}`, target: 'global', timestamp: new Date().toISOString() });
-    saveData(); switchTab(currentUser.role==='dm'?'chat':'p-chat', currentUser.role);
-}
-
-function triggerChestAnimation(newCardId) {
-    const overlay = document.getElementById('chest-overlay'); const display = document.getElementById('new-card-display');
-    const card = gameData.cards.find(c => c.id === newCardId); if(!card) return;
-    display.innerHTML = `<div class="clash-card" style="transform:scale(1.1);margin:0 auto;background:white;"><div class="cost">${card.cost}</div><img src="${card.img}"><h4>${card.name}</h4></div><p style="color:#ffd700;margin-top:20px;">Vous avez obtenu : <strong>${card.name}</strong></p>`;
-    overlay.classList.remove('hidden'); setTimeout(() => overlay.classList.add('hidden'), 5000); overlay.onclick = () => overlay.classList.add('hidden');
 }
