@@ -729,7 +729,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS (CORRECTION LARGEUR INPUTS)
+// 2. PLAYERS (CORRIGÉ : TRI ALPHABÉTIQUE + RESSOURCES)
 function renderPlayersModule(container) {
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
@@ -743,12 +743,17 @@ function renderPlayersModule(container) {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
             { name: 'type', label: 'Type', type: 'select', options: [{value:'player', label:'Joueur'}, {value:'npc', label:'PNJ'}], value: 'player' },
-            { name: 'avatar', label: 'URL Avatar', value: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' },
+            { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/king.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
             const newChar = { 
-                id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, 
-                deck: [], inventory: '', x: 50, y: 50 
+                id: generateId(), 
+                name: data.name, 
+                avatar: data.avatar, 
+                desc: data.desc, 
+                deck: [], 
+                inventory: '', 
+                x: 50, y: 50 
             };
             if(data.type === 'player') gameData.players.push(newChar); else gameData.npcs.push(newChar);
             saveData(`Création de ${data.name}`);
@@ -757,6 +762,9 @@ function renderPlayersModule(container) {
 
     const list = document.createElement('div');
     
+    // --- FONCTION DE TRI ---
+    const sortByName = (a, b) => a.name.localeCompare(b.name);
+
     const renderRow = (char, type) => {
         const row = document.createElement('div');
         row.className = 'panel';
@@ -772,18 +780,10 @@ function renderPlayersModule(container) {
             gameData.resourceTypes.forEach(res => {
                 const val = (char[res.id] !== undefined && char[res.id] !== null) ? char[res.id] : 0;
                 const maxVal = res.max || 9999999;
-                
                 resourcesHtml += `
                     <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
                         <span style="font-size:0.8rem; margin-right:2px; cursor:help;" title="${res.name} (Max: ${maxVal})">${res.icon}</span> 
-                        <input type="number" class="res-input" 
-                            data-id="${char.id}" 
-                            data-type="${res.id}" 
-                            data-max="${maxVal}"
-                            style="width:100px; padding:2px; border:1px solid #ccc;" 
-                            value="${val}" 
-                            max="${maxVal}" 
-                            min="0">
+                        <input type="number" class="res-input" data-id="${char.id}" data-type="${res.id}" data-max="${maxVal}" style="width:100px; padding:2px; border:1px solid #ccc;" value="${val}" max="${maxVal}" min="0">
                     </div>`;
             });
             resourcesHtml += '</div>';
@@ -813,17 +813,8 @@ function renderPlayersModule(container) {
                 const fieldType = e.target.dataset.type;
                 const pid = e.target.dataset.id;
                 const max = parseInt(e.target.dataset.max);
-
-                if (val > max) {
-                    val = max;
-                    e.target.value = max;
-                    alert(`Maximum atteint (${max})`);
-                }
-                if (val < 0) {
-                    val = 0;
-                    e.target.value = 0;
-                }
-
+                if (val > max) { val = max; e.target.value = max; alert(`Maximum atteint (${max})`); }
+                if (val < 0) { val = 0; e.target.value = 0; }
                 const targetP = findEntityById(pid);
                 if(targetP) { targetP[fieldType] = val; syncGameData(gameData); }
             };
@@ -833,7 +824,7 @@ function renderPlayersModule(container) {
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
-                { name: 'avatar', label: 'URL Avatar', value: char.avatar },
+                { name: 'avatar', label: 'Avatar', type: 'image', value: char.avatar },
                 { name: 'desc', label: 'Description', type: 'textarea', value: cleanDesc },
                 { name: 'inventory', label: 'Inventaire', type: 'textarea', value: char.inventory || '' }
             ], (data) => {
@@ -852,11 +843,23 @@ function renderPlayersModule(container) {
         list.appendChild(row);
     };
 
-    gameData.players.forEach(p => renderRow(p, 'player'));
-    if(gameData.npcs.length > 0) {
-        const sep = document.createElement('h3'); sep.innerText = 'PNJ'; sep.style.marginTop = '20px';
-        list.appendChild(sep); gameData.npcs.forEach(n => renderRow(n, 'npc'));
+    // --- APPLICATION DU TRI ---
+    const sortedPlayers = [...gameData.players].sort(sortByName);
+    const sortedNPCs = [...gameData.npcs].sort(sortByName);
+
+    if(sortedPlayers.length > 0) {
+        list.innerHTML += `<h3 style="margin-top:0; border-bottom:2px solid var(--cr-blue); color:var(--cr-blue)">Joueurs</h3>`;
+        sortedPlayers.forEach(p => renderRow(p, 'player'));
     }
+    
+    if(sortedNPCs.length > 0) {
+        const sep = document.createElement('h3'); 
+        sep.innerHTML = `PNJ`; 
+        sep.style.cssText = 'margin-top:20px; border-bottom:2px solid var(--cr-wood); color:var(--cr-wood)';
+        list.appendChild(sep);
+        sortedNPCs.forEach(n => renderRow(n, 'npc'));
+    }
+    
     container.appendChild(list);
 }
 
@@ -1036,45 +1039,102 @@ function renderChatModule(container) {
     }
 }
 
-// 4. CARTES (ITEMS)
+// 4. CARTES (TRIÉES PAR CATÉGORIE + ALPHABÉTIQUE)
 function renderCardsModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
 
+    // --- FORMULAIRE DE CRÉATION ---
     document.getElementById('btn-create-card').onclick = () => {
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom', value: '' },
+            { name: 'type', label: 'Catégorie', type: 'select', options: [
+                {value:'troupe', label:'Troupes / Personnages'},
+                {value:'sort', label:'Sorts / Pouvoirs'},
+                {value:'batiment', label:'Bâtiments / Lieux'},
+                {value:'objet', label:'Objets / Items'}
+            ], value: 'objet' },
             { name: 'cost', label: 'Coût', type: 'number', value: '3' },
-            { name: 'img', label: 'Image URL', value: './assets/cards/mirror.png' },
+            { name: 'img', label: 'Image URL', type: 'image', value: './assets/cards/knight.png' },
             { name: 'desc', label: 'Effet', type: 'textarea', value: '' }
         ], (data) => {
-            gameData.cards.push({ id: generateId(), name: data.name, cost: parseInt(data.cost), img: data.img, desc: data.desc });
+            gameData.cards.push({ 
+                id: generateId(), 
+                name: data.name, 
+                type: data.type, 
+                cost: parseInt(data.cost), 
+                img: data.img, 
+                desc: data.desc 
+            });
             saveData(`Carte créée : ${data.name}`);
         });
     };
 
-    const grid = document.createElement('div');
-    grid.className = 'card-grid';
-    
+    // --- LOGIQUE DE TRI ---
+    const categories = {
+        'troupe': { title: '⚔️ Troupes', cards: [] },
+        'sort': { title: '🧪 Sorts', cards: [] },
+        'batiment': { title: '🏰 Bâtiments', cards: [] },
+        'objet': { title: '🎒 Objets', cards: [] },
+        'autre': { title: '❓ Autres', cards: [] }
+    };
+
     gameData.cards.forEach(c => {
-        const el = document.createElement('div');
-        el.className = 'clash-card';
-        el.style.cursor = 'pointer';
-        el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}"><h4>${c.name}</h4>`;
-        
-        el.onclick = () => {
-            openFormModal(`Modifier ${c.name}`, [
-                { name: 'name', label: 'Nom', value: c.name },
-                { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
-                { name: 'img', label: 'Image URL', value: c.img },
-                { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
-            ], (data) => {
-                c.name = data.name; c.cost = parseInt(data.cost); c.img = data.img; c.desc = data.desc;
-                saveData(`Carte modifiée : ${c.name}`);
-            });
-        };
-        grid.appendChild(el);
+        const catKey = (c.type && categories[c.type]) ? c.type : 'autre';
+        categories[catKey].cards.push(c);
     });
-    container.appendChild(grid);
+
+    Object.keys(categories).forEach(key => {
+        categories[key].cards.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    // --- AFFICHAGE PAR CATÉGORIE ---
+    let hasCards = false;
+    Object.keys(categories).forEach(key => {
+        const cat = categories[key];
+        if (cat.cards.length > 0) {
+            hasCards = true;
+            const header = document.createElement('h3');
+            header.style.cssText = "margin-top:20px; border-bottom: 2px solid #ccc; color:#555;";
+            header.innerText = cat.title;
+            container.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.className = 'card-grid';
+
+            cat.cards.forEach(c => {
+                const el = document.createElement('div');
+                el.className = 'clash-card';
+                el.style.cursor = 'pointer';
+                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'"><h4>${c.name}</h4>`;
+                
+                el.onclick = () => {
+                    openFormModal(`Modifier ${c.name}`, [
+                        { name: 'name', label: 'Nom', value: c.name },
+                        { name: 'type', label: 'Catégorie', type: 'select', options: [
+                            {value:'troupe', label:'Troupes'}, {value:'sort', label:'Sorts'},
+                            {value:'batiment', label:'Bâtiments'}, {value:'objet', label:'Objets'}
+                        ], value: c.type || 'objet' },
+                        { name: 'cost', label: 'Coût', type: 'number', value: c.cost },
+                        { name: 'img', label: 'Image URL', type: 'image', value: c.img },
+                        { name: 'desc', label: 'Description', type: 'textarea', value: c.desc || '' }
+                    ], (data) => {
+                        c.name = data.name;
+                        c.type = data.type;
+                        c.cost = parseInt(data.cost);
+                        c.img = data.img;
+                        c.desc = data.desc;
+                        saveData(`Carte modifiée : ${c.name}`);
+                    });
+                };
+                grid.appendChild(el);
+            });
+            container.appendChild(grid);
+        }
+    });
+    
+    if (!hasCards) {
+        container.innerHTML += '<p style="opacity:0.5; text-align:center">Aucune carte dans la collection.</p>';
+    }
 }
 
 // 5. RELATIONS V2 (FIX COULEURS + HOVER)
