@@ -729,7 +729,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS (CORRIGÉ : TRI ALPHABÉTIQUE + RESSOURCES)
+// 2. PLAYERS (TRI ALPHABÉTIQUE FRANÇAIS)
 function renderPlayersModule(container) {
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
@@ -746,15 +746,7 @@ function renderPlayersModule(container) {
             { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/king.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
-            const newChar = { 
-                id: generateId(), 
-                name: data.name, 
-                avatar: data.avatar, 
-                desc: data.desc, 
-                deck: [], 
-                inventory: '', 
-                x: 50, y: 50 
-            };
+            const newChar = { id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, deck: [], inventory: '', x: 50, y: 50 };
             if(data.type === 'player') gameData.players.push(newChar); else gameData.npcs.push(newChar);
             saveData(`Création de ${data.name}`);
         });
@@ -762,8 +754,12 @@ function renderPlayersModule(container) {
 
     const list = document.createElement('div');
     
-    // --- FONCTION DE TRI ---
-    const sortByName = (a, b) => a.name.localeCompare(b.name);
+    // --- FONCTION DE TRI ROBUSTE (FRANÇAIS) ---
+    const sortFrench = (a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+    };
 
     const renderRow = (char, type) => {
         const row = document.createElement('div');
@@ -782,7 +778,7 @@ function renderPlayersModule(container) {
                 const maxVal = res.max || 9999999;
                 resourcesHtml += `
                     <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
-                        <span style="font-size:0.8rem; margin-right:2px; cursor:help;" title="${res.name} (Max: ${maxVal})">${res.icon}</span> 
+                        <span style="font-size:0.8rem; margin-right:2px;" title="${res.name}">${res.icon}</span> 
                         <input type="number" class="res-input" data-id="${char.id}" data-type="${res.id}" data-max="${maxVal}" style="width:100px; padding:2px; border:1px solid #ccc;" value="${val}" max="${maxVal}" min="0">
                     </div>`;
             });
@@ -844,8 +840,9 @@ function renderPlayersModule(container) {
     };
 
     // --- APPLICATION DU TRI ---
-    const sortedPlayers = [...gameData.players].sort(sortByName);
-    const sortedNPCs = [...gameData.npcs].sort(sortByName);
+    // On trie une COPIE des tableaux pour ne pas modifier l'ordre interne de la DB
+    const sortedPlayers = [...gameData.players].sort(sortFrench);
+    const sortedNPCs = [...gameData.npcs].sort(sortFrench);
 
     if(sortedPlayers.length > 0) {
         list.innerHTML += `<h3 style="margin-top:0; border-bottom:2px solid var(--cr-blue); color:var(--cr-blue)">Joueurs</h3>`;
@@ -1039,11 +1036,10 @@ function renderChatModule(container) {
     }
 }
 
-// 4. CARTES (TRIÉES PAR CATÉGORIE + ALPHABÉTIQUE)
+// 4. CARTES (TRI CATÉGORIES + ALPHABÉTIQUE)
 function renderCardsModule(container) {
     container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-create-card" class="btn btn-secondary">+ Créer une Carte</button></div>';
 
-    // --- FORMULAIRE DE CRÉATION ---
     document.getElementById('btn-create-card').onclick = () => {
         openFormModal('Nouvelle Carte', [
             { name: 'name', label: 'Nom', value: '' },
@@ -1078,16 +1074,22 @@ function renderCardsModule(container) {
         'autre': { title: '❓ Autres', cards: [] }
     };
 
+    // Répartition
     gameData.cards.forEach(c => {
         const catKey = (c.type && categories[c.type]) ? c.type : 'autre';
         categories[catKey].cards.push(c);
     });
 
+    // Tri A-Z dans chaque catégorie (Robuste)
     Object.keys(categories).forEach(key => {
-        categories[key].cards.sort((a, b) => a.name.localeCompare(b.name));
+        categories[key].cards.sort((a, b) => {
+            const na = (a.name || '').toLowerCase();
+            const nb = (b.name || '').toLowerCase();
+            return na.localeCompare(nb, 'fr', { sensitivity: 'base' });
+        });
     });
 
-    // --- AFFICHAGE PAR CATÉGORIE ---
+    // Affichage
     let hasCards = false;
     Object.keys(categories).forEach(key => {
         const cat = categories[key];
