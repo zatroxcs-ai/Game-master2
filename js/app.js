@@ -275,49 +275,51 @@ function renderPlayer() {
 // --- MODULES ---
 
 // 1. MAP & ATLAS
+// MODULE MAP (AVEC POSITIONS SAUVEGARDÉES PAR CARTE)
 function renderMapModule(container, isEditable) {
-    // Migration data
+    // Initialisation Maps
     if (!gameData.maps) {
-        gameData.maps = [{ id: 'default', name: 'Carte Principale', url: gameData.config.mapUrl || './assets/map.png', desc: 'Défaut' }];
+        gameData.maps = [{ id: 'default', name: 'Carte Principale', url: './assets/map.png', desc: 'Défaut' }];
         gameData.activeMapId = 'default';
         syncGameData(gameData);
     }
 
+    // Récupérer carte active
     let currentMap = gameData.maps.find(m => m.id === gameData.activeMapId) || gameData.maps[0];
-    if(!currentMap) currentMap = { url: './assets/map.png', name: 'Défaut' };
+    if(!currentMap || !currentMap.url) currentMap = { url: './assets/map.png', name: 'Défaut', id: 'default' };
 
     const wrapper = document.createElement('div');
     wrapper.className = 'map-container';
+    wrapper.style.backgroundColor = '#222';
     
     const img = document.createElement('img');
     img.src = currentMap.url;
     img.className = 'map-img';
+    img.onerror = function() { this.style.display = 'none'; }; // Fix boucle infinie
     
-    // --- FIX BOUCLE INFINIE ---
-    img.onerror = function() { 
-        // 1. On coupe l'écouteur pour ne pas qu'il se relance
-        this.onerror = null; 
-        
-        // 2. On met une image de secours très simple
-        this.src = 'https://placehold.co/800x600/333/white?text=Image+Introuvable';
-        
-        // 3. (Optionnel) Si même placehold.co est bloqué, on met un fond gris simple
-        this.style.backgroundColor = '#333';
-        this.alt = "Image introuvable : Vérifiez l'URL";
-    };
-    // -------------------------
-    
+    // LOGIQUE DE DÉPLACEMENT
     if(isEditable) {
-        img.addEventListener('click', (e) => {
+        wrapper.addEventListener('click', (e) => {
+            if(e.target.tagName === 'BUTTON') return; // Ignore les boutons
+
             if (selectedEntityId) {
+                // On utilise la fonction de recherche globale
                 let entity = findEntityById(selectedEntityId);
 
                 if (entity) {
                     const rect = wrapper.getBoundingClientRect();
                     const x = ((e.clientX - rect.left) / rect.width) * 100;
                     const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    entity.x = x; entity.y = y;
-                    saveData(); 
+                    
+                    // --- NOUVEAU SYSTÈME DE POSITION ---
+                    if (!entity.positions) entity.positions = {}; // Créer l'objet si inexistant
+                    entity.positions[currentMap.id] = { x, y };   // Sauver pour CETTE carte
+                    
+                    // On garde x/y pour la rétrocompatibilité ou l'affichage par défaut
+                    entity.x = x; 
+                    entity.y = y;
+
+                    syncGameData(gameData); // Sauvegarde rapide
                     render(); 
                 }
             } else {
@@ -325,24 +327,37 @@ function renderMapModule(container, isEditable) {
             }
         });
 
+        // Bouton Atlas
         const btnManage = document.createElement('button');
         btnManage.className = 'btn btn-secondary';
         btnManage.innerHTML = '🗺️ Atlas';
         btnManage.style.position = 'absolute';
-        btnManage.style.top = '10px';
-        btnManage.style.left = '10px';
-        btnManage.style.zIndex = '50';
+        btnManage.style.top = '10px'; btnManage.style.left = '10px'; btnManage.style.zIndex = '50';
         btnManage.onclick = () => openMapManager();
         wrapper.appendChild(btnManage);
     }
 
     wrapper.appendChild(img);
 
+    // RENDU DES PIONS
     [...gameData.players, ...gameData.npcs].forEach(entity => {
+        // --- RECUPERATION POSITION INTELLIGENTE ---
+        let posX = 50; 
+        let posY = 50;
+
+        // Est-ce qu'on a une position enregistrée pour CETTE carte ?
+        if (entity.positions && entity.positions[currentMap.id]) {
+            posX = entity.positions[currentMap.id].x;
+            posY = entity.positions[currentMap.id].y;
+        } else {
+            // Sinon, on met au centre (ou on pourrait cacher le pion)
+            // Pour l'instant on met au centre pour éviter de perdre les pions
+        }
+
         const p = document.createElement('div');
         p.className = 'pawn';
-        p.style.left = entity.x + '%';
-        p.style.top = entity.y + '%';
+        p.style.left = posX + '%';
+        p.style.top = posY + '%';
         p.style.backgroundImage = `url(${entity.avatar})`;
         
         if (selectedEntityId === entity.id) {
@@ -1415,16 +1430,68 @@ function playCardAction(playerName, card) {
 
 function showQRCode() {
     const modal = document.getElementById('modal-qr');
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = '';
+    const modalContent = modal.querySelector('.modal-content');
+    
+    // On recrée le HTML à chaque ouverture pour être sûr d'avoir la liste à jour
+    modalContent.innerHTML = `
+        <span class="close-modal" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px;">&times;</span>
+        <h3>Rejoindre la partie</h3>
+        
+        <div style="margin-bottom:15px; text-align:left;">
+            <label>Qui connecter ?</label>
+            <select id="qr-target-select" style="padding:10px; width:100%; margin-top:5px;">
+                <option value="new">✨ Nouveau Joueur (Générique)</option>
+            </select>
+        </div>
+
+        <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
+        <p id="qr-hint" style="font-size:0.9rem; color:#444;">Scanner pour rejoindre.</p>
+    `;
+
+    const select = document.getElementById('qr-target-select');
+    
+    // Remplissage de la liste des joueurs
+    if (gameData.players && gameData.players.length > 0) {
+        gameData.players.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.innerText = `👤 ${p.name}`;
+            select.appendChild(opt);
+        });
+    }
+
+    // Fonction de génération
+    const generateQR = () => {
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ''; 
+
+        const baseUrl = window.location.href.split('?')[0];
+        const session = document.getElementById('session-input').value;
+        const selectedId = select.value;
+
+        let targetUrl = `${baseUrl}?session=${session}`;
+
+        if (selectedId !== 'new') {
+            targetUrl += `&role=player&id=${selectedId}`;
+            const pName = gameData.players.find(p=>p.id===selectedId)?.name || 'Joueur';
+            document.getElementById('qr-hint').innerHTML = `Connexion directe : <b>${pName}</b>`;
+        } else {
+            document.getElementById('qr-hint').innerText = "Lien d'invitation générique.";
+        }
+
+        new QRCode(qrContainer, {
+            text: targetUrl,
+            width: 200,
+            height: 200
+        });
+    };
+
+    // Events
+    select.onchange = generateQR;
+    modal.querySelector('.close-modal').onclick = () => modal.style.display = 'none';
+
     modal.style.display = 'flex';
-
-    const baseUrl = window.location.href.split('?')[0];
-    const session = document.getElementById('session-input').value;
-    let targetUrl = `${baseUrl}?session=${session}`;
-    if(gameData.players.length > 0) targetUrl += `&role=player&id=${gameData.players[0].id}`;
-
-    new QRCode(qrContainer, { text: targetUrl, width: 200, height: 200 });
+    generateQR();
 }
 
 // --- GESTIONNAIRE DE DECK (MJ) - VERSION ROBUSTE ---
