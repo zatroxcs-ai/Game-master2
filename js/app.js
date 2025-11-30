@@ -550,7 +550,7 @@ function openMapManager() {
     };
 }
 
-// 2. PLAYERS (CORRIGÉ : SYNTAXE + BUG VISUEL)
+// 2. PLAYERS (VERSION AVEC MAX LIMITS & INPUTS LARGES)
 function renderPlayersModule(container) {
     container.innerHTML = `
         <div style="margin-bottom:15px; display:flex; gap:10px;">
@@ -559,7 +559,6 @@ function renderPlayersModule(container) {
         </div>
     `;
     
-    // Listeners
     document.getElementById('btn-manage-res').onclick = () => openResourceManager();
     document.getElementById('btn-add-p').onclick = () => {
         openFormModal('Créer Personnage', [
@@ -569,17 +568,10 @@ function renderPlayersModule(container) {
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
             const newChar = { 
-                id: generateId(), 
-                name: data.name, 
-                avatar: data.avatar, 
-                desc: data.desc, 
-                deck: [], 
-                inventory: '', 
-                x: 50, y: 50 
+                id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, 
+                deck: [], inventory: '', x: 50, y: 50 
             };
             if(data.type === 'player') gameData.players.push(newChar); else gameData.npcs.push(newChar);
-            
-            // CORRECTION SYNTAXE ICI (Ajout des backticks ` `)
             saveData(`Création de ${data.name}`);
         });
     };
@@ -600,16 +592,25 @@ function renderPlayersModule(container) {
             resourcesHtml = '<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px;">';
             gameData.resourceTypes.forEach(res => {
                 const val = (char[res.id] !== undefined && char[res.id] !== null) ? char[res.id] : 0;
+                // Valeur Max (défaut très haut si pas définie)
+                const maxVal = res.max || 9999999;
+                
                 resourcesHtml += `
                     <div style="display:flex; align-items:center; background:#eee; padding:2px 5px; border-radius:4px;">
-                        <span style="font-size:0.8rem; margin-right:2px;" title="${res.name}">${res.icon}</span> 
-                        <input type="number" class="res-input" data-id="${char.id}" data-type="${res.id}" style="width:50px; padding:2px; border:1px solid #ccc;" value="${val}">
+                        <span style="font-size:0.8rem; margin-right:2px; cursor:help;" title="${res.name} (Max: ${maxVal})">${res.icon}</span> 
+                        <input type="number" class="res-input" 
+                            data-id="${char.id}" 
+                            data-type="${res.id}" 
+                            data-max="${maxVal}"
+                            style="width:80px; padding:2px; border:1px solid #ccc;" 
+                            value="${val}" 
+                            max="${maxVal}" 
+                            min="0">
                     </div>`;
             });
             resourcesHtml += '</div>';
         }
 
-        // CORRECTION BUG VISUEL : Si la desc est "undefined" (texte), on met vide
         const cleanDesc = (char.desc && char.desc !== "undefined") ? char.desc : "";
 
         row.innerHTML = `
@@ -630,14 +631,28 @@ function renderPlayersModule(container) {
 
         row.querySelectorAll('.res-input').forEach(input => {
             input.onchange = (e) => {
-                const val = parseInt(e.target.value) || 0;
+                let val = parseInt(e.target.value) || 0;
                 const fieldType = e.target.dataset.type;
                 const pid = e.target.dataset.id;
+                const max = parseInt(e.target.dataset.max);
+
+                // Vérification de la limite MAX
+                if (val > max) {
+                    val = max;
+                    e.target.value = max; // On remet visuellement le max
+                    alert(`Maximum atteint pour cette ressource (${max})`);
+                }
+                if (val < 0) {
+                    val = 0;
+                    e.target.value = 0;
+                }
+
                 const targetP = findEntityById(pid);
                 if(targetP) { targetP[fieldType] = val; syncGameData(gameData); }
             };
         });
 
+        // Boutons actions
         row.querySelector(`#deck-${char.id}`).onclick = () => openDeckManager(char);
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
@@ -648,7 +663,6 @@ function renderPlayersModule(container) {
             ], (data) => {
                 char.name = data.name; char.avatar = data.avatar;
                 char.desc = data.desc; char.inventory = data.inventory;
-                // CORRECTION SYNTAXE ICI
                 saveData(`Modification de ${char.name}`);
             });
         };
@@ -656,7 +670,6 @@ function renderPlayersModule(container) {
             if(confirm(`Supprimer ${char.name} ?`)) {
                 if(type === 'player') gameData.players = gameData.players.filter(p => p.id !== char.id);
                 else gameData.npcs = gameData.npcs.filter(p => p.id !== char.id);
-                // CORRECTION SYNTAXE ICI
                 saveData(`Suppression de ${char.name}`);
             }
         };
