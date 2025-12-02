@@ -1,13 +1,50 @@
-:root {
-    --cr-blue: #345e8c;
-    --cr-blue-dark: #2a4b70;
-    --cr-gold: #fcc22d;
-    --cr-wood: #8c5e35;
-    --cr-stone: #f0f0f0;
-    --cr-bg: #e6e6e6;
-    --cr-text: #333;
-    --shadow: 0 4px 0 rgba(0,0,0,0.2);
+/* =========================================
+   👑 THEME "ROYALE UI" - LOCAL (OFFLINE)
+   ========================================= */
+
+/* 1. DÉCLARATION DE LA POLICE LOCALE */
+@font-face {
+    font-family: 'Lilita One';
+    /* Le chemin doit pointer vers ton fichier */
+    src: url('./assets/fonts/LilitaOne-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
 }
+
+:root {
+    /* Palette Clash (Plus vibrante) */
+    --ui-blue-dark: #2c3e50;
+    --ui-blue-light: #3498db;
+    --ui-gold: #f1c40f;
+    --ui-gold-shadow: #c27c0e;
+    --ui-red: #e74c3c;
+    --ui-red-shadow: #c0392b;
+    --ui-green: #2ecc71;
+    --ui-green-shadow: #27ae60;
+    --ui-bg-panel: #fdfdfd;
+    --ui-text-dark: #2c3e50;
+    --ui-radius: 12px;
+}
+
+/* 2. TYPOGRAPHIE GLOBALE */
+body {
+    /* Roboto par défaut, ou police système si pas d'internet */
+    font-family: 'Roboto', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+/* Application de la police locale aux titres */
+h1, h2, h3, h4, 
+.btn, 
+.profile-name,
+#form-title,
+.logo {
+    font-family: 'Lilita One', cursive !important;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+}
+
+/* ... LE RESTE DU CSS RESTE INCHANGÉ ... */
 
 * { box-sizing: border-box; }
 body {
