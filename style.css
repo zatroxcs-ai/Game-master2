@@ -1404,13 +1404,6 @@ option {
 /* =========================================================
    🎨 RETOUR DES CARREAUX (DANS L'INTERFACE SEULEMENT)
    ========================================================= */
-
-/* 1. On garde le fond "hors-jeu" en noir (pour éviter les marges blanches) */
-body {
-    background-color: #000 !important;
-    background-image: none !important; /* Pas de carreaux sur le body global */
-}
-
 /* 2. On applique les carreaux UNIQUEMENT sur l'écran du joueur */
 #player-screen.active {
     /* L'image de fond à carreaux */
@@ -1437,10 +1430,6 @@ body {
 /* =========================================================
    📱 MOBILE : PLEIN ÉCRAN + FOND CARREAUX (SANS CASSER LE PC)
    ========================================================= */
-
-/* 1. ON NE TOUCHE PAS AU BODY (Le MJ garde son fond PC) */
-/* (Assure-toi juste que tu as bien supprimé le bloc précédent qui mettait background: none sur body) */
-
 /* 2. ÉCRAN JOUEUR : ON LE FORCE EN PLEIN ÉCRAN PAR DESSUS TOUT */
 #player-screen.active {
     /* On le sort du flux normal pour qu'il prenne tout l'écran */
