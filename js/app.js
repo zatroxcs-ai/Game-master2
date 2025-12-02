@@ -812,7 +812,7 @@ function renderPlayersModule(container) {
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
-                { name: 'avatar', label: 'Avatar', type: 'image', value: char.avatar },
+                { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/cards/card-champion-unknown.png'},
                 { name: 'desc', label: 'Description', type: 'textarea', value: cleanDesc },
                 { name: 'inventory', label: 'Inventaire', type: 'textarea', value: char.inventory || '' }
             ], (data) => {

@@ -1488,3 +1488,62 @@ option {
     background-color: rgba(0, 0, 0, 0.4) !important; 
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
+
+/* =========================================================
+   🛠️ FINAL FIX : FOND CARREAUX PARTOUT
+   ========================================================= */
+
+/* 1. PC (MJ) : On force les carreaux */
+body {
+    background-image: url('./assets/ui-tex-2.png') !important;
+    background-repeat: repeat !important;
+    background-attachment: fixed !important;
+    background-color: #1c2e4a !important; /* Bleu de sécurité */
+    /* On réactive le comportement normal sur PC */
+    display: flex !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* 2. MOBILE (JOUEUR) : Interface Plein Écran */
+#player-screen.active {
+    position: fixed !important;
+    top: 0; 
+    left: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 500;
+    
+    /* Le mobile a aussi son fond à carreaux */
+    background-image: url('./assets/ui-tex-2.png') !important;
+    background-repeat: repeat !important;
+    background-color: #1c2e4a !important;
+    
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 3. Ajustement Contenu Mobile */
+#player-content {
+    width: 100% !important;
+    padding: 0 !important;
+    padding-bottom: 90px !important;
+}
+
+/* 4. Ajustement Header Mobile */
+.mobile-profile-header {
+    margin: 0 !important;
+    width: 100% !important;
+    border-radius: 0 0 25px 25px !important;
+    background: linear-gradient(180deg, #375679 0%, #1e3c5a 100%) !important;
+}
+
+/* 5. Marges internes pour ne pas coller aux bords */
+.mobile-section-title, .inventory-box, .card-grid {
+    margin-left: 15px !important;
+    margin-right: 15px !important;
+}
