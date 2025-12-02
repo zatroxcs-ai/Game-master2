@@ -1706,24 +1706,6 @@ function renderPlayerStats(container, p) {
     deckSection.appendChild(deckGrid);
     container.appendChild(deckSection);
 }
-    // 1. GÉNÉRATION DES RESSOURCES (Pillules)
-    let resourcesHtml = '';
-    if (gameData.resourceTypes) {
-        gameData.resourceTypes.forEach(res => {
-            const val = p[res.id] !== undefined ? p[res.id] : 0;
-            const color = res.color || '#fff';
-            const icon = res.icon || '💎';
-            
-            resourcesHtml += `
-                <div class="resource-pill">
-                    <div style="width:24px; height:24px; background:${color}; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:8px; font-size:0.8rem; box-shadow:inset 0 -2px 5px rgba(0,0,0,0.3)">
-                        ${icon}
-                    </div>
-                    <span style="color:#fff; font-size:1rem; letter-spacing:1px;">${val}</span>
-                </div>
-            `;
-        });
-    }
 
     // 2. RENDU DU HEADER "CLASH STYLE"
     container.innerHTML = ''; // On nettoie le conteneur
