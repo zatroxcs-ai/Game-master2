@@ -1961,23 +1961,19 @@ function updateLocalData(newData) {
     render();
 }
 
-// --- ANIMATION D'OUVERTURE DE COFFRE ---
+// --- ANIMATION COFFRE (VERSION SÉCURISÉE) ---
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
     const display = document.getElementById('new-card-display');
     
-    // On cherche la carte
     const card = gameData.cards.find(c => c.id === newCardId);
     if(!card) return;
 
-    // Son d'ouverture (Optionnel - Si tu ajoutes un son plus tard)
-    // const audio = new Audio('./assets/chest_open.mp3'); audio.play().catch(() => {});
-
-    // On prépare l'affichage
     display.innerHTML = `
         <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
             
             <img src="./assets/chest_anim.gif?t=${new Date().getTime()}" 
+                 onerror="this.onerror=null; this.src='./assets/coffre.png'; this.style.width='150px';"
                  style="width:200px; height:auto; margin-bottom:-20px; z-index:2; filter: drop-shadow(0 0 20px gold);">
             
             <div id="anim-card-reveal" style="opacity:0; transform:scale(0.5); transition:all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
@@ -1997,10 +1993,7 @@ function triggerChestAnimation(newCardId) {
     
     overlay.classList.remove('hidden');
 
-    // Séquençage de l'animation
-    // À 0ms : Le coffre s'ouvre (le GIF se lance)
-    
-    // À 1500ms (1.5s) : La carte "Pop" par dessus le coffre
+    // Séquence
     setTimeout(() => {
         const cardDiv = document.getElementById('anim-card-reveal');
         if(cardDiv) {
@@ -2009,12 +2002,10 @@ function triggerChestAnimation(newCardId) {
         }
     }, 1500);
 
-    // À 6000ms (6s) : On ferme tout
     setTimeout(() => {
         overlay.classList.add('hidden');
     }, 6000);
     
-    // Fermeture manuelle au clic
     overlay.onclick = () => overlay.classList.add('hidden');
 }
 
