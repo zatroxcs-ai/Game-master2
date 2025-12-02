@@ -618,122 +618,138 @@ function renderMapModule(container, isEditable) {
     container.appendChild(wrapper);
 }
 
-// --- ATLAS (AVEC MÉTÉO) ---
+// --- ATLAS & MÉTÉO (FLUIDE) ---
 function openMapManager() {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
     document.getElementById('form-title').innerText = 'Atlas des Cartes';
-    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
+    
+    // On cache le bouton de sauvegarde global car on gère tout en interne
+    saveBtn.style.display = 'none'; 
 
-    // Options Météo
-    const weatherOptions = [
-        {value:'none', label:'☀️ Normal'},
-        {value:'rain', label:'🌧️ Pluie'},
-        {value:'snow', label:'❄️ Neige'},
-        {value:'fog', label:'🌫️ Brouillard'},
-        {value:'night', label:'🌑 Nuit'},
-        {value:'sepia', label:'📜 Sépia (Vieux)'}
-    ];
+    // Fonction de rendu de la liste
+    const renderList = () => {
+        container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
 
-    container.querySelector('#btn-new-map').onclick = () => {
-        modal.style.display = 'none'; 
-        openFormModal('Nouvelle Carte', [
-            { name: 'name', label: 'Nom du lieu', value: '' },
-            { name: 'url', label: 'URL Image', value: '', type:'image' },
-            { name: 'weather', label: 'Ambiance / Météo', type: 'select', options: weatherOptions, value: 'none' }, // Nouveau champ
-            { name: 'desc', label: 'Description', type: 'textarea', value: '' }
-        ], (data) => {
-            const safeUrl = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
-            gameData.maps.push({ 
-                id: generateId(), 
-                name: data.name || 'Sans Nom', 
-                url: safeUrl, 
-                weather: data.weather, // Sauvegarde météo
-                desc: data.desc 
+        // Bouton Nouvelle Carte
+        container.querySelector('#btn-new-map').onclick = () => {
+            // Pour la création, on utilise la modale classique (elle fermera, c'est ok)
+            modal.style.display = 'none';
+            openFormModal('Nouvelle Carte', [
+                { name: 'name', label: 'Nom du lieu', value: '' },
+                { name: 'url', label: 'URL Image', value: '', type:'image' },
+                { name: 'weather', label: 'Météo', type: 'select', options: [{value:'none', label:'☀️'},{value:'rain', label:'🌧️'},{value:'snow', label:'❄️'},{value:'fog', label:'🌫️'},{value:'night', label:'🌑'},{value:'sepia', label:'📜'}], value: 'none' }
+            ], (data) => {
+                gameData.maps.push({ id: generateId(), name: data.name, url: data.url||'./assets/map.png', weather: data.weather });
+                saveData();
+                setTimeout(openMapManager, 100); // On rouvre l'atlas
             });
-            saveData(`Carte créée : ${data.name}`);
-            setTimeout(() => openMapManager(), 100); 
+        };
+
+        const list = document.createElement('div');
+        list.style.maxHeight = '400px'; list.style.overflowY = 'auto';
+
+        gameData.maps.forEach(m => {
+            const isActive = m.id === gameData.activeMapId;
+            const row = document.createElement('div');
+            row.className = 'panel';
+            row.style.marginBottom = '10px';
+            row.style.background = isActive ? '#e3f2fd' : 'rgba(255,255,255,0.05)';
+            row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #555';
+            row.style.display = 'flex';
+            row.style.flexDirection = 'column';
+            row.style.gap = '5px';
+            
+            // Ligne 1 : Info + Image
+            const infoRow = document.createElement('div');
+            infoRow.style.display = 'flex';
+            infoRow.style.justifyContent = 'space-between';
+            infoRow.style.alignItems = 'center';
+            infoRow.innerHTML = `
+                <div style="text-align:left">
+                    <strong style="color:${isActive ? '#000' : '#fff'}">${m.name}</strong> ${isActive ? '✅' : ''}<br>
+                    <small style="opacity:0.7; color:${isActive ? '#333' : '#ccc'}">Météo: ${m.weather || 'Normal'}</small>
+                </div>
+                <img src="${m.url}" style="width:60px; height:40px; object-fit:cover; border:1px solid #888;">
+            `;
+            
+            // Ligne 2 : Actions (Charger / Météo / Suppr)
+            const actionRow = document.createElement('div');
+            actionRow.style.display = 'flex';
+            actionRow.style.justifyContent = 'flex-end';
+            actionRow.style.gap = '5px';
+
+            // Bouton CHARGER
+            if(!isActive) {
+                const btnLoad = document.createElement('button');
+                btnLoad.className = 'btn btn-primary';
+                btnLoad.innerText = 'Charger';
+                btnLoad.style.fontSize = '0.7rem';
+                btnLoad.onclick = () => {
+                    gameData.activeMapId = m.id;
+                    gameData.config.mapUrl = m.url;
+                    saveData(`Changement de carte : ${m.name}`);
+                    renderList(); // On recharge juste la liste (pas de fermeture !)
+                };
+                actionRow.appendChild(btnLoad);
+            }
+
+            // Bouton MÉTÉO RAPIDE (Selecteur direct)
+            const weatherSelect = document.createElement('select');
+            weatherSelect.style.padding = '2px';
+            weatherSelect.style.fontSize = '0.8rem';
+            weatherSelect.style.width = 'auto';
+            const weathers = {none:'☀️', rain:'🌧️', snow:'❄️', fog:'🌫️', night:'🌑', sepia:'📜'};
+            for(let k in weathers) {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.innerText = weathers[k];
+                if((m.weather || 'none') === k) opt.selected = true;
+                weatherSelect.appendChild(opt);
+            }
+            weatherSelect.onchange = (e) => {
+                m.weather = e.target.value;
+                saveData(); // Sauvegarde silencieuse
+                renderList(); // Mise à jour visuelle immédiate
+            };
+            actionRow.appendChild(weatherSelect);
+
+            // Bouton SUPPRIMER
+            const btnDel = document.createElement('button');
+            btnDel.className = 'btn';
+            btnDel.innerText = '🗑️';
+            btnDel.style.background = 'red';
+            btnDel.style.fontSize = '0.7rem';
+            btnDel.onclick = () => {
+                if(gameData.maps.length <= 1) return alert("Gardez au moins une carte.");
+                if(confirm('Supprimer ?')) {
+                    gameData.maps = gameData.maps.filter(x => x.id !== m.id);
+                    if(isActive) {
+                        gameData.activeMapId = gameData.maps[0].id;
+                        gameData.config.mapUrl = gameData.maps[0].url;
+                    }
+                    saveData();
+                    renderList();
+                }
+            };
+            actionRow.appendChild(btnDel);
+
+            row.appendChild(infoRow);
+            row.appendChild(actionRow);
+            list.appendChild(row);
         });
+        container.appendChild(list);
     };
 
-    const list = document.createElement('div');
-    list.style.maxHeight = '300px'; list.style.overflowY = 'auto';
-
-    gameData.maps.forEach(m => {
-        const isActive = m.id === gameData.activeMapId;
-        const row = document.createElement('div');
-        row.className = 'panel';
-        row.style.marginBottom = '10px';
-        row.style.background = isActive ? '#e3f2fd' : 'white';
-        row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
-        row.style.textAlign = 'left';
-        
-        row.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center">
-                <div>
-                    <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
-                    <small style="opacity:0.7">Météo: ${m.weather || 'Normal'}</small>
-                </div>
-                <div style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
-                     <img src="${m.url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='🗺️'">
-                </div>
-            </div>
-            <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
-                ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
-                <button class="btn" style="font-size:0.7rem; padding:5px; background:orange" id="edit-${m.id}">✏️</button>
-                <button class="btn" style="font-size:0.7rem; padding:5px; background:red" id="del-${m.id}">🗑️</button>
-            </div>
-        `;
-
-        if(!isActive) {
-            row.querySelector(`#load-${m.id}`).onclick = () => {
-                gameData.activeMapId = m.id;
-                gameData.config.mapUrl = m.url;
-                saveData(`Changement de carte : ${m.name}`);
-                modal.style.display = 'none';
-            };
-        }
-
-        row.querySelector(`#edit-${m.id}`).onclick = () => {
-            modal.style.display = 'none';
-            openFormModal(`Modifier ${m.name}`, [
-                { name: 'name', label: 'Nom', value: m.name },
-                { name: 'url', label: 'URL', value: m.url, type:'image' },
-                { name: 'weather', label: 'Météo', type: 'select', options: weatherOptions, value: m.weather || 'none' }, // Champ modifiable
-                { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
-            ], (data) => {
-                m.name = data.name; 
-                m.url = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
-                m.weather = data.weather;
-                m.desc = data.desc;
-                saveData();
-                setTimeout(() => openMapManager(), 100);
-            });
-        };
-
-        row.querySelector(`#del-${m.id}`).onclick = () => {
-            if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
-            if(confirm('Supprimer ?')) {
-                gameData.maps = gameData.maps.filter(x => x.id !== m.id);
-                if(isActive) {
-                    gameData.activeMapId = gameData.maps[0].id;
-                    gameData.config.mapUrl = gameData.maps[0].url;
-                }
-                saveData();
-                openMapManager(); 
-            }
-        };
-        list.appendChild(row);
-    });
-
-    container.appendChild(list);
-    saveBtn.style.display = 'none';
+    renderList();
     modal.style.display = 'flex';
+
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block'; 
         modal.style.display = 'none';
+        render(); 
     };
 }
 
@@ -1923,7 +1939,7 @@ function showQRCode() {
     generateQR();
 }
 
-// --- GESTIONNAIRE DE DECK (CORRIGÉ & STABLE) ---
+// --- GESTIONNAIRE DE DECK (STABILISÉ) ---
 function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
     modal.querySelector('.modal-content').classList.add('modal-xl'); 
@@ -1931,21 +1947,19 @@ function openDeckManager(entityArg) {
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    // On garde l'ID pour retrouver l'entité fraîche à chaque fois
+    // On garde l'ID, c'est la seule chose fiable
     const targetId = entityArg.id;
 
-    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
+    saveBtn.style.display = 'none'; 
     modal.style.display = 'flex';
 
     // Fonction de rendu interne
     const renderManager = () => {
-        // 1. On récupère l'entité fraîche via la fonction globale
+        // 1. On récupère la version la plus à jour du perso
         const freshEntity = findEntityById(targetId);
         
-        // Si l'entité n'existe plus, on ferme
         if (!freshEntity) return modal.style.display = 'none';
 
-        // Titre dynamique
         const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
         document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
         
@@ -1958,7 +1972,7 @@ function openDeckManager(entityArg) {
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        if (!freshEntity.deck) freshEntity.deck = []; // Sécurité
+        if (!freshEntity.deck) freshEntity.deck = [];
 
         if (freshEntity.deck.length === 0) {
             currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
@@ -1968,19 +1982,18 @@ function openDeckManager(entityArg) {
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
-                    el.style.borderColor = '#ff4d4d'; // Rouge léger
-                    el.title = "Retirer du deck";
+                    el.style.borderColor = '#ff4d4d';
+                    el.title = "Retirer";
                     el.innerHTML = `
                         <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
                         <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                         <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
                     `;
-                    
-                    // --- CORRECTION ICI ---
                     el.onclick = () => {
+                        // Action immédiate
                         freshEntity.deck.splice(index, 1); 
-                        renderManager(); 
-                        syncGameData(gameData); // Appel direct (sans window.)
+                        renderManager(); // On rafraîchit l'affichage TOUT DE SUITE
+                        saveData(); // On sauvegarde en fond (sans recharger toute l'interface)
                     };
                     currentList.appendChild(el);
                 }
@@ -1999,19 +2012,18 @@ function openDeckManager(entityArg) {
         gameData.cards.forEach(card => {
             const el = document.createElement('div');
             el.className = 'mini-card';
-            el.style.borderColor = '#4caf50'; // Vert
-            el.title = "Ajouter au deck";
+            el.style.borderColor = '#4caf50';
+            el.title = "Ajouter";
             el.innerHTML = `
                 <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
                 <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
                 <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
             `;
-            
-            // --- CORRECTION ICI ---
             el.onclick = () => {
+                // Action immédiate
                 freshEntity.deck.push(card.id);
-                renderManager();
-                syncGameData(gameData); // Appel direct (sans window.)
+                renderManager(); // On rafraîchit l'affichage TOUT DE SUITE
+                saveData(); // On sauvegarde en fond
             };
             libraryList.appendChild(el);
         });
@@ -2023,18 +2035,14 @@ function openDeckManager(entityArg) {
     // Lancement initial
     renderManager();
 
-   // Gestion fermeture
+    // Gestion fermeture propre
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
-        
-        // ON RETIRE LA CLASSE XL ICI
         modal.querySelector('.modal-content').classList.remove('modal-xl'); 
-        
         modal.style.display = 'none';
-        render(); 
+        render(); // Un dernier render global pour être sûr
     };
 }
-
 
 // Remplace la fonction updateLocalData existante
 function updateLocalData(newData) {
