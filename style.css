@@ -1500,3 +1500,69 @@ body {
     background-color: rgba(0, 0, 0, 0.4) !important; /* Fond semi-transparent */
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
+
+/* =========================================================
+   📱 MOBILE : PLEIN ÉCRAN + FOND CARREAUX (SANS CASSER LE PC)
+   ========================================================= */
+
+/* 1. ON NE TOUCHE PAS AU BODY (Le MJ garde son fond PC) */
+/* (Assure-toi juste que tu as bien supprimé le bloc précédent qui mettait background: none sur body) */
+
+/* 2. ÉCRAN JOUEUR : ON LE FORCE EN PLEIN ÉCRAN PAR DESSUS TOUT */
+#player-screen.active {
+    /* On le sort du flux normal pour qu'il prenne tout l'écran */
+    position: fixed; 
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 500; /* Par dessus le reste */
+
+    /* On lui redonne SON propre fond à carreaux */
+    background-image: url('./assets/ui-tex-2.png') !important;
+    background-repeat: repeat !important;
+    background-color: #1c2e4a !important; /* Couleur de fond de secours */
+    
+    /* On annule les marges et bordures de la "boîte" */
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    
+    /* Flex pour organiser le contenu */
+    display: flex;
+    flex-direction: column;
+}
+
+/* 3. LE CONTENU PREND TOUTE LA LARGEUR */
+#player-content {
+    width: 100% !important;
+    padding: 0 !important;
+    padding-bottom: 90px !important; /* Espace pour le menu du bas */
+    overflow-x: hidden; /* Évite le scroll horizontal */
+}
+
+/* 4. LE HEADER (ABDEL) COLLE AUX BORDS */
+.mobile-profile-header {
+    margin: 0 !important;
+    width: 100% !important;
+    border-radius: 0 0 25px 25px !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+    /* On garde ton dégradé bleu joli */
+    background: linear-gradient(180deg, #375679 0%, #1e3c5a 100%) !important;
+}
+
+/* 5. MARGES INTERNES (Pour que le texte ne touche pas les bords de l'écran) */
+.mobile-section-title, 
+.inventory-box, 
+.card-grid {
+    margin-left: 15px !important;
+    margin-right: 15px !important;
+}
+
+/* 6. FOND DE L'INVENTAIRE (Pour lisibilité sur les carreaux) */
+.inventory-box {
+    /* Fond noir semi-transparent pour bien lire sur les carreaux */
+    background-color: rgba(0, 0, 0, 0.4) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
