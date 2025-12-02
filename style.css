@@ -1352,3 +1352,57 @@ option {
     background-repeat: repeat;
     background-attachment: fixed;
 }
+
+/* =========================================================
+   🧹 NETTOYAGE FINAL INTERFACE (FULL SCREEN)
+   ========================================================= */
+
+/* 1. ON SUPPRIME LE FOND À CARREAUX ET ON MET DU SOMBRE */
+#player-screen, #player-screen.active {
+    background-image: none !important; /* Adieu les carreaux */
+    background-color: #121820 !important; /* Fond presque noir/bleu très propre */
+}
+
+/* 2. ON ÉTIRE LE CONTENU SUR TOUTE LA LARGEUR */
+#player-content {
+    padding: 0 !important; /* On enlève les marges externes */
+    padding-bottom: 90px !important; /* On garde juste la place pour le menu du bas */
+    width: 100% !important;
+}
+
+/* 3. LE HEADER (ABDEL) PREND TOUTE LA LARGEUR */
+.mobile-profile-header {
+    margin: 0 !important; /* Il colle aux bords */
+    width: 100% !important;
+    border-radius: 0 0 30px 30px !important; /* Arrondi uniquement en bas */
+    background: linear-gradient(180deg, #2c3e50 0%, #121820 100%) !important; /* Dégradé vers le fond */
+    border-bottom: 2px solid #fcc22d !important; /* Fine ligne or */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+
+/* 4. ON REDONNE DE L'AIR AUX ÉLÉMENTS INTERNES */
+/* Comme on a enlevé le padding global, on le remet juste pour les éléments pour pas qu'ils touchent les bords */
+.mobile-section-title {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+    margin-top: 30px !important;
+}
+
+.inventory-box {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+    background-color: #1c2530 !important; /* Un peu plus clair que le fond */
+    border: none !important;
+}
+
+.card-grid {
+    padding: 0 20px !important; /* Marge sur les côtés de la grille */
+    justify-content: center;
+}
+
+/* 5. PETIT NETTOYAGE DU MENU DU BAS */
+#player-nav {
+    background: #0e1218 !important; /* Encore plus sombre pour le contraste */
+    border-top: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.8) !important;
+}
