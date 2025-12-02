@@ -1356,13 +1356,6 @@ option {
 /* =========================================================
    🧹 NETTOYAGE FINAL INTERFACE (FULL SCREEN)
    ========================================================= */
-
-/* 1. ON SUPPRIME LE FOND À CARREAUX ET ON MET DU SOMBRE */
-#player-screen, #player-screen.active {
-    background-image: none !important; /* Adieu les carreaux */
-    background-color: #121820 !important; /* Fond presque noir/bleu très propre */
-}
-
 /* 2. ON ÉTIRE LE CONTENU SUR TOUTE LA LARGEUR */
 #player-content {
     padding: 0 !important; /* On enlève les marges externes */
