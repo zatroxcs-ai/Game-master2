@@ -244,6 +244,14 @@ function enterGame(sid) {
         screens.player.classList.add('active');
         const me = gameData.players.find(p => p.id === currentUser.id);
         if(me) prevDeckSize = me.deck.length;
+
+        // --- CORRECTIF : On force l'onglet STATS pour le joueur ---
+        currentTab = 'p-stats';
+        
+        // On met à jour visuellement le bouton du bas
+        document.querySelectorAll('#player-nav button').forEach(b => b.classList.remove('active'));
+        const statBtn = document.querySelector('#player-nav button[data-tab="p-stats"]');
+        if(statBtn) statBtn.classList.add('active');
     }
     render();
 }
