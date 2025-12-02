@@ -1042,3 +1042,51 @@ input:focus, textarea:focus, select:focus {
 ::-webkit-scrollbar-track {
     background: #121820;
 }
+
+/* --- FIX ULTIME BOUTONS DORÉS (CLASH STYLE) --- */
+
+/* On cible la classe générique ET les IDs spécifiques pour être sûr que ça s'applique */
+.btn-secondary, 
+#btn-create-card, 
+#btn-new-quest, 
+#btn-new-res, 
+#btn-new-map, 
+#btn-manage-res,
+#btn-new-entry {
+    background-color: #fcc22d !important; /* Vrai Jaune Or */
+    border: none !important;
+    border-bottom: 5px solid #c99b1f !important; /* Bordure Or Foncé (Effet 3D) */
+    color: #5c4300 !important; /* Texte Marron (Contraste fort) */
+    text-shadow: none !important; /* Pas d'ombre portée sur le texte */
+    font-family: 'Lilita One', cursive !important;
+    font-size: 1.1rem !important;
+    text-transform: uppercase;
+    opacity: 1 !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Effet au survol (Brillance) */
+.btn-secondary:hover,
+#btn-create-card:hover, 
+#btn-new-quest:hover, 
+#btn-new-res:hover, 
+#btn-new-map:hover, 
+#btn-manage-res:hover,
+#btn-new-entry:hover {
+    background-color: #ffcf4b !important; /* Or plus clair */
+    filter: brightness(1.1);
+    transform: scale(1.02); /* Petit grossissement */
+}
+
+/* Effet au clic (Enfoncement) */
+.btn-secondary:active,
+#btn-create-card:active, 
+#btn-new-quest:active, 
+#btn-new-res:active, 
+#btn-new-map:active, 
+#btn-manage-res:active,
+#btn-new-entry:active {
+    border-bottom-width: 0px !important; /* L'ombre 3D disparaît */
+    transform: translateY(5px) !important; /* Le bouton descend */
+    box-shadow: none !important;
+}
