@@ -27,7 +27,7 @@ const LOCAL_ASSETS = [
     './assets/cards/bats.png',
     './assets/cards/goblin-gang.png',
     './assets/cards/skeleton-barrel.png',
-    './assets/cards/snowball.png',
+    './assets/cards/giant-snowball.png',
     './assets/cards/rascals.png',
     './assets/cards/royal-giant.png',
     './assets/cards/elite-barbarians.png',
@@ -76,7 +76,7 @@ const LOCAL_ASSETS = [
     './assets/cards/goblin-barrel.png',
     './assets/cards/giant-skeleton.png',
     './assets/cards/balloon.png',
-    './assets/cards/fury.png', // Ou rage.png selon le pack
+    './assets/cards/rage.png', // Ou rage.png selon le pack
     './assets/cards/rage.png',
     './assets/cards/x-bow.png',
     './assets/cards/freeze.png',
@@ -767,7 +767,7 @@ function renderPlayersModule(container) {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
             { name: 'type', label: 'Type', type: 'select', options: [{value:'player', label:'Joueur'}, {value:'npc', label:'PNJ'}], value: 'player' },
-            { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/king.png' },
+            { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/cards/card-champion-unknown.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
             const newChar = { id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, deck: [], inventory: '', x: 50, y: 50 };
