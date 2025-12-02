@@ -1662,6 +1662,73 @@ function openJournalModal(title, initialData, onSave) {
 }
 
 function renderPlayerStats(container, p) {
+    // 1. DÉGRADÉ ROYAL & AVATAR (C'est ici que ça change tout)
+    const header = document.createElement('div');
+    // IMPORTANT : On utilise la nouvelle classe CSS
+    header.className = 'mobile-profile-header'; 
+    
+    // Génération des pillules de ressources
+    let resourcesHtml = '';
+    if (gameData.resourceTypes) {
+        gameData.resourceTypes.forEach(res => {
+            const val = p[res.id] !== undefined ? p[res.id] : 0;
+            resourcesHtml += `
+                <div class="resource-pill">
+                    <div style="width:20px; height:20px; background:${res.color||'#fff'}; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:5px; font-size:0.7rem;">${res.icon||'💎'}</div>
+                    <span>${val}</span>
+                </div>`;
+        });
+    }
+
+    header.innerHTML = `
+        <div style="position:relative; display:inline-block;">
+            <img src="${p.avatar}" class="mobile-avatar" onerror="this.src='https://placehold.co/100'">
+            <div style="position:absolute; bottom:-5px; right:-5px; background:#3498db; color:white; font-family:'Lilita One', sans-serif; padding:2px 6px; border-radius:6px; border:2px solid white; font-size:0.7rem;">NV.1</div>
+        </div>
+        <div class="mobile-name">${p.name}</div>
+        <div style="display:flex; justify-content:center; flex-wrap:wrap; gap:5px; margin-top:5px;">${resourcesHtml}</div>
+    `;
+    container.appendChild(header);
+
+    // 2. INVENTAIRE
+    const invSection = document.createElement('div');
+    invSection.innerHTML = `<h3 class="mobile-section-title">🎒 Inventaire</h3>`;
+    const invBox = document.createElement('div');
+    invBox.style.cssText = 'background:rgba(0,0,0,0.4); border:1px solid #4a6fa5; border-radius:10px; padding:15px; color:white; min-height:50px; white-space:pre-wrap;';
+    invBox.innerText = p.inventory || 'Sac vide.';
+    invSection.appendChild(invBox);
+    container.appendChild(invSection);
+
+    // 3. DECK
+    const deckSection = document.createElement('div');
+    deckSection.innerHTML = `<h3 class="mobile-section-title">⚔️ Deck de Combat</h3>`;
+    const deckGrid = document.createElement('div');
+    deckGrid.className = 'card-grid';
+    deckGrid.style.cssText = 'display:grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap:10px;';
+
+    const userDeck = Array.isArray(p.deck) ? p.deck : [];
+    if (userDeck.length > 0) {
+        userDeck.forEach(cardId => {
+            const c = gameData.cards.find(x => x.id === cardId);
+            if (c) {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'clash-card';
+                cardEl.style.cssText = 'background:#2c3e50; border-color:#4a6fa5; box-shadow:0 4px 8px rgba(0,0,0,0.4); cursor:pointer; padding:4px;';
+                cardEl.innerHTML = `
+                    <div class="cost" style="width:20px; height:20px; line-height:18px; font-size:12px;">${c.cost}</div>
+                    <img src="${c.img}" style="border-radius:4px; width:100%; height:auto;" onerror="this.src='https://placehold.co/80'">
+                    <h4 style="color:#fcc22d; font-family:'Lilita One', sans-serif; font-size:0.7rem; margin:4px 0 0 0;">${c.name}</h4>
+                `;
+                cardEl.onclick = () => { if(confirm(`Jouer ${c.name} ?`)) playCardAction(p.name, c); };
+                deckGrid.appendChild(cardEl);
+            }
+        });
+    } else {
+        deckGrid.innerHTML = '<p style="color:#aaa; text-align:center; width:100%;">Aucune carte.</p>';
+    }
+    deckSection.appendChild(deckGrid);
+    container.appendChild(deckSection);
+}
     // 1. GÉNÉRATION DES RESSOURCES (Pillules)
     let resourcesHtml = '';
     if (gameData.resourceTypes) {
