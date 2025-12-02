@@ -1961,32 +1961,60 @@ function updateLocalData(newData) {
     render();
 }
 
-// Remplace la fonction triggerChestAnimation existante
+// --- ANIMATION D'OUVERTURE DE COFFRE ---
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
     const display = document.getElementById('new-card-display');
     
+    // On cherche la carte
     const card = gameData.cards.find(c => c.id === newCardId);
-    
     if(!card) return;
 
+    // Son d'ouverture (Optionnel - Si tu ajoutes un son plus tard)
+    // const audio = new Audio('./assets/chest_open.mp3'); audio.play().catch(() => {});
+
+    // On prépare l'affichage
     display.innerHTML = `
-        <div class="clash-card" style="transform: scale(1.1); box-shadow: 0 0 30px white; margin: 0 auto; background: white;">
-            <div class="cost">${card.cost}</div>
-            <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
-            <h4>${card.name}</h4>
+        <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+            
+            <img src="./assets/chest_anim.gif?t=${new Date().getTime()}" 
+                 style="width:200px; height:auto; margin-bottom:-20px; z-index:2; filter: drop-shadow(0 0 20px gold);">
+            
+            <div id="anim-card-reveal" style="opacity:0; transform:scale(0.5); transition:all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+                <div class="clash-card" style="transform: scale(1.2); background:white; margin-bottom:15px; box-shadow: 0 0 30px white;">
+                    <div class="cost">${card.cost}</div>
+                    <img src="${card.img}" onerror="this.src='https://placehold.co/100x120?text=?'">
+                    <h4>${card.name}</h4>
+                </div>
+            </div>
+
+            <p style="color:#ffd700; text-shadow:0 2px 4px black; font-size:1.2rem; text-align:center; z-index:5;">
+                NOUVELLE CARTE !<br>
+                <strong style="font-size:1.5rem; text-transform:uppercase;">${card.name}</strong>
+            </p>
         </div>
-        <p style="color:#ffd700; text-shadow:0 2px 0 black; line-height:1.4;">
-            Vous avez obtenu :<br><strong style="font-size:1.2rem; text-transform:uppercase">${card.name}</strong>
-        </p>
     `;
     
     overlay.classList.remove('hidden');
+
+    // Séquençage de l'animation
+    // À 0ms : Le coffre s'ouvre (le GIF se lance)
     
+    // À 1500ms (1.5s) : La carte "Pop" par dessus le coffre
+    setTimeout(() => {
+        const cardDiv = document.getElementById('anim-card-reveal');
+        if(cardDiv) {
+            cardDiv.style.opacity = '1';
+            cardDiv.style.transform = 'scale(1)';
+        }
+    }, 1500);
+
+    // À 6000ms (6s) : On ferme tout
     setTimeout(() => {
         overlay.classList.add('hidden');
-    }, 5000);
+    }, 6000);
     
+    // Fermeture manuelle au clic
     overlay.onclick = () => overlay.classList.add('hidden');
 }
 
