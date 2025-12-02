@@ -1090,3 +1090,73 @@ input:focus, textarea:focus, select:focus {
     transform: translateY(5px) !important; /* Le bouton descend */
     box-shadow: none !important;
 }
+
+/* --- FIX ULTIME : ÉLIMINATION DES FONDS BLANCS --- */
+
+/* 1. Cartes de Quêtes & Entrées Journal */
+.quest-card, 
+.journal-entry {
+    background-color: rgba(30, 40, 55, 0.95) !important; /* Bleu nuit */
+    border: 1px solid #4a6fa5 !important; /* Bordure bleu acier */
+    color: #e0e0e0 !important; /* Texte clair */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Titres dans ces cartes */
+.quest-title, 
+.journal-title {
+    color: var(--ui-gold) !important; /* Or */
+    text-shadow: none !important;
+}
+
+/* Petits textes descriptifs */
+.quest-desc, 
+.journal-date, 
+.journal-content {
+    color: #ccc !important; /* Gris clair */
+}
+
+/* 2. Grilles (Deck Manager & Galerie Images) */
+.deck-manager-section, 
+.asset-grid {
+    background-color: #121820 !important; /* Fond très sombre (creux) */
+    border: 1px solid #4a6fa5 !important;
+}
+
+/* Les items dans les grilles */
+.mini-card, 
+.asset-item {
+    background-color: #2c3e50 !important; /* Tuile gris-bleu */
+    border-color: #4a6fa5 !important;
+    color: white !important;
+}
+
+/* 3. Sélecteur de Relations (La barre d'avatars) */
+.rel-selector {
+    background-color: rgba(0,0,0,0.3) !important; /* Assombrir le fond */
+    border: 1px solid #4a6fa5;
+}
+
+/* 4. Colonnes du tableau Relations */
+.rel-column {
+    background-color: rgba(30, 40, 55, 0.8) !important;
+    border-color: #4a6fa5 !important;
+}
+/* Les cartes dans les colonnes */
+.rel-card {
+    background-color: #2c3e50 !important;
+    color: white !important;
+    border-top: 1px solid #4a6fa5 !important;
+    border-right: 1px solid #4a6fa5 !important;
+    border-bottom: 1px solid #4a6fa5 !important;
+    /* On laisse la border-left de couleur (vert/rouge) */
+}
+.rel-card strong {
+    color: var(--ui-gold) !important;
+}
+
+/* 5. Menus déroulants (Options internes) */
+option {
+    background-color: #151f2b !important;
+    color: white !important;
+}
