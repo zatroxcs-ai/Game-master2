@@ -1841,7 +1841,7 @@ function renderPlayerStats(container, p) {
 
     deckSection.appendChild(deckGrid);
     container.appendChild(deckSection);
-}
+
 
 // Fonction pour "Jouer" une carte (Envoyer dans le chat)
 function playCardAction(playerName, card) {
