@@ -1673,20 +1673,7 @@ function renderPlayerStats(container, p) {
     // 1. DÉGRADÉ ROYAL & AVATAR (C'est ici que ça change tout)
     const header = document.createElement('div');
     // IMPORTANT : On utilise la nouvelle classe CSS
-    header.className = 'mobile-profile-header'; 
-    
-    // Génération des pillules de ressources
-    let resourcesHtml = '';
-    if (gameData.resourceTypes) {
-        gameData.resourceTypes.forEach(res => {
-            const val = p[res.id] !== undefined ? p[res.id] : 0;
-            resourcesHtml += `
-                <div class="resource-pill">
-                    <div style="width:20px; height:20px; background:${res.color||'#fff'}; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:5px; font-size:0.7rem;">${res.icon||'💎'}</div>
-                    <span>${val}</span>
-                </div>`;
-        });
-    }
+	header.className = 'mobile-profile-header'; 
 
     header.innerHTML = `
         <div style="position:relative; display:inline-block;">
