@@ -1961,47 +1961,66 @@ function updateLocalData(newData) {
     render();
 }
 
-// --- ANIMATION COFFRE (VERSION SÉCURISÉE) ---
+// --- ANIMATION COFFRE (CORRECTIF FINAL) ---
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
-    const display = document.getElementById('new-card-display');
+    // ON CIBLE LE CONTENEUR GLOBAL POUR EFFACER LA VIEILLE IMAGE "?"
+    const container = overlay.querySelector('.chest-anim-container');
     
     const card = gameData.cards.find(c => c.id === newCardId);
     if(!card) return;
 
-    display.innerHTML = `
-        <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+    // Lien fiable vers le GIF du coffre
+    const chestUrl = "https://media.tenor.com/J1y9sWv7tSAAAAAC/clash-royale-legendary-chest.gif";
+
+    // On écrase tout le contenu précédent (ce qui supprime le "?" bugué)
+    container.innerHTML = `
+        <div class="light-burst"></div>
+        <div style="position:relative; display:flex; flex-direction:column; align-items:center; width:100%;">
             
-            <img src="./assets/chest_anim.gif?t=${new Date().getTime()}" 
-                 onerror="this.onerror=null; this.src='./assets/coffre.png'; this.style.width='150px';"
-                 style="width:200px; height:auto; margin-bottom:-20px; z-index:2; filter: drop-shadow(0 0 20px gold);">
+            <img src="${chestUrl}?t=${new Date().getTime()}" 
+                 style="width:250px; height:auto; margin-bottom:-40px; z-index:2; filter: drop-shadow(0 0 20px gold);">
             
-            <div id="anim-card-reveal" style="opacity:0; transform:scale(0.5); transition:all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
-                <div class="clash-card" style="transform: scale(1.2); background:white; margin-bottom:15px; box-shadow: 0 0 30px white;">
+            <div id="anim-card-reveal" style="display:none; transform:scale(0.1); transition:transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+                <div class="clash-card" style="transform: scale(1.3); background:white; margin-bottom:20px; box-shadow: 0 0 40px white; border: 4px solid gold;">
                     <div class="cost">${card.cost}</div>
-                    <img src="${card.img}" onerror="this.src='https://placehold.co/100x120?text=?'">
+                    
+                    <img src="${card.img}" 
+                         onerror="this.src='./assets/epee.png'; this.onerror=null;"
+                         style="min-height:100px; object-fit:contain;">
+                         
                     <h4>${card.name}</h4>
                 </div>
             </div>
 
-            <p style="color:#ffd700; text-shadow:0 2px 4px black; font-size:1.2rem; text-align:center; z-index:5;">
-                NOUVELLE CARTE !<br>
-                <strong style="font-size:1.5rem; text-transform:uppercase;">${card.name}</strong>
-            </p>
+            <div id="anim-text-reveal" style="display:none; color:#ffd700; text-shadow:0 3px 6px black; text-align:center; z-index:5;">
+                <div style="font-size:1.5rem; margin-bottom:5px;">NOUVELLE CARTE !</div>
+                <strong style="font-size:2rem; text-transform:uppercase; letter-spacing:1px;">${card.name}</strong>
+            </div>
         </div>
     `;
     
     overlay.classList.remove('hidden');
 
-    // Séquence
+    // SÉQUENCE D'ANIMATION (TIMING)
+    
+    // À 1.5 secondes : Le coffre est ouvert -> La carte POP !
     setTimeout(() => {
         const cardDiv = document.getElementById('anim-card-reveal');
-        if(cardDiv) {
-            cardDiv.style.opacity = '1';
-            cardDiv.style.transform = 'scale(1)';
+        const textDiv = document.getElementById('anim-text-reveal');
+        
+        if(cardDiv && textDiv) {
+            cardDiv.style.display = 'block'; // On affiche
+            textDiv.style.display = 'block';
+            
+            // Petite pause technique pour permettre l'effet "Zoom"
+            setTimeout(() => {
+                cardDiv.style.transform = 'scale(1)'; 
+            }, 50);
         }
     }, 1500);
 
+    // À 6 secondes : Fin
     setTimeout(() => {
         overlay.classList.add('hidden');
     }, 6000);
