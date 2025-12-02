@@ -1160,3 +1160,82 @@ option {
     background-color: #151f2b !important;
     color: white !important;
 }
+
+/* =========================================
+   📱 MOBILE THEME UNIFICATION (DARK & GOLD)
+   ========================================= */
+
+/* 1. FOND D'ÉCRAN (On récupère la texture du MJ) */
+#player-screen {
+    /* On enlève l'ancien fond bleu plat */
+    background-color: transparent !important;
+    background-image: none !important;
+    
+    /* On ajoute un filtre sombre pour que le texte reste lisible sur la texture */
+    backdrop-filter: brightness(0.6); 
+}
+
+/* 2. EN-TÊTE DE PROFIL (Haut de l'écran) */
+.profile-header {
+    /* Bleu Nuit Profond + Bordure Or */
+    background: rgba(30, 40, 55, 0.98) !important;
+    border-bottom: 4px solid var(--ui-gold) !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5) !important;
+    border-radius: 0 0 25px 25px !important;
+    margin-bottom: 20px !important;
+}
+
+/* Nom du joueur en Or */
+.profile-name {
+    color: var(--ui-gold) !important;
+    font-size: 1.8rem !important;
+}
+
+/* 3. BARRE DE NAVIGATION (Bas de l'écran) */
+#player-nav {
+    background-color: #121820 !important; /* Très sombre */
+    border-top: 3px solid var(--ui-gold) !important; /* Ligne Or */
+}
+
+/* Icônes inactives */
+#player-nav button {
+    color: #5a6b7c !important; /* Gris bleuté */
+}
+
+/* Icônes actives (Sélectionnées) */
+#player-nav button.active {
+    color: var(--ui-gold) !important;
+}
+#player-nav button.active .nav-icon {
+    filter: drop-shadow(0 0 8px rgba(241, 196, 15, 0.6)) !important; /* Glow doré */
+    transform: translateY(-5px) scale(1.1);
+}
+
+/* 4. INVENTAIRE & TEXTES */
+.inventory-box {
+    background-color: #151f2b !important;
+    border: 2px solid #4a6fa5 !important;
+    color: #e0e0e0 !important;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* Force les titres en Or sur mobile */
+#player-content h2, 
+#player-content h3 {
+    color: var(--ui-gold) !important;
+    border-bottom-color: rgba(255,255,255,0.1) !important;
+}
+
+/* Force le texte standard en gris clair */
+#player-content p {
+    color: #ccc !important;
+}
+
+/* 5. MODALES SUR MOBILE (Pour qu'elles soient pleines) */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95% !important;
+        margin: 10px !important;
+        border: 2px solid var(--ui-gold) !important; /* Cadre doré pour le style */
+    }
+}
