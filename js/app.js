@@ -1662,61 +1662,110 @@ function openJournalModal(title, initialData, onSave) {
 }
 
 function renderPlayerStats(container, p) {
-    // 1. En-tête Profil
-    let pillsHtml = '';
+    // 1. GÉNÉRATION DES RESSOURCES (Pillules)
+    let resourcesHtml = '';
     if (gameData.resourceTypes) {
         gameData.resourceTypes.forEach(res => {
             const val = p[res.id] !== undefined ? p[res.id] : 0;
-            pillsHtml += `<div class="res-pill"><div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div><span style="color:${res.color}; filter:brightness(1.5)">${val}</span></div>`;
+            const color = res.color || '#fff';
+            const icon = res.icon || '💎';
+            
+            resourcesHtml += `
+                <div class="resource-pill">
+                    <div style="width:24px; height:24px; background:${color}; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:8px; font-size:0.8rem; box-shadow:inset 0 -2px 5px rgba(0,0,0,0.3)">
+                        ${icon}
+                    </div>
+                    <span style="color:#fff; font-size:1rem; letter-spacing:1px;">${val}</span>
+                </div>
+            `;
         });
     }
+
+    // 2. RENDU DU HEADER "CLASH STYLE"
+    container.innerHTML = ''; // On nettoie le conteneur
     
-    const header = document.createElement('div'); 
-    header.className = 'profile-header';
-    header.innerHTML = `<img src="${p.avatar}" class="profile-avatar" onerror="this.src='https://placehold.co/80'"><div class="profile-name">${p.name}</div><div class="resource-row" style="flex-wrap:wrap">${pillsHtml}</div><div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">${p.desc || ''}</div>`;
+    // Bloc En-tête (Avatar + Nom + Ressources)
+    const header = document.createElement('div');
+    header.className = 'mobile-profile-header';
+    header.innerHTML = `
+        <div style="position:relative; display:inline-block;">
+            <img src="${p.avatar}" class="mobile-avatar" onerror="this.src='https://placehold.co/100'">
+            <div style="position:absolute; bottom:-10px; right:-10px; background:#3498db; color:white; font-family:'Lilita One', sans-serif; padding:2px 8px; border-radius:8px; border:2px solid white; font-size:0.8rem;">
+                NIV. 1
+            </div>
+        </div>
+        <div class="mobile-name">${p.name}</div>
+        <div style="display:flex; justify-content:center; flex-wrap:wrap; gap:5px; margin-top:5px;">
+            ${resourcesHtml}
+        </div>
+        <div style="font-size:0.9rem; color:#b0c4de; margin-top:10px; font-style:italic;">
+            "${p.desc || 'Prêt au combat.'}"
+        </div>
+    `;
     container.appendChild(header);
 
-    const dashboard = document.createElement('div'); 
-    dashboard.className = 'player-dashboard';
+    // 3. INVENTAIRE
+    const invSection = document.createElement('div');
+    invSection.innerHTML = `<h3 class="mobile-section-title">🎒 Inventaire</h3>`;
     
-    // 2. Inventaire
-    dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
-    const invInput = document.createElement('textarea'); 
-    invInput.className = 'inventory-box';
-    invInput.value = p.inventory || 'Votre sac est vide.'; 
-    invInput.readOnly = true; 
-    invInput.style.cssText = 'background:#e6e6e6; color:#555; cursor:default; outline:none;';
-    dashboard.appendChild(invInput);
+    const invBox = document.createElement('div');
+    invBox.style.background = 'rgba(0,0,0,0.3)';
+    invBox.style.border = '1px solid #4a6fa5';
+    invBox.style.borderRadius = '12px';
+    invBox.style.padding = '15px';
+    invBox.style.color = '#fff';
+    invBox.style.minHeight = '60px';
+    invBox.style.whiteSpace = 'pre-wrap'; // Garde les retours à la ligne
+    invBox.innerText = p.inventory || 'Votre sac est vide.';
+    invSection.appendChild(invBox);
+    container.appendChild(invSection);
 
-    // 3. Deck (Correction ici)
-    dashboard.innerHTML += `<h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck</h3><p class="play-hint">Clique pour jouer !</p>`;
-    const deckGrid = document.createElement('div'); 
-    deckGrid.className = 'card-grid player-deck';
+    // 4. DECK DE CARTES
+    const deckSection = document.createElement('div');
+    deckSection.style.marginTop = '20px';
+    deckSection.innerHTML = `<h3 class="mobile-section-title">⚔️ Deck de Combat</h3>`;
     
-    // Sécurité : on s'assure que p.deck est un tableau
+    const deckGrid = document.createElement('div');
+    deckGrid.className = 'card-grid'; // Utilise ta classe CSS existante
+    
+    // Style inline pour forcer le look mobile ici
+    deckGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(90px, 1fr))';
+    deckGrid.style.gap = '15px';
+
     const userDeck = Array.isArray(p.deck) ? p.deck : [];
 
-    if(userDeck.length === 0) {
-        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Coffre vide.</p>';
-    } else {
+    if (userDeck.length > 0) {
         userDeck.forEach(cardId => {
-            // On cherche la carte dans la base
             const c = gameData.cards.find(x => x.id === cardId);
-            
-            // On n'affiche QUE si la carte existe encore
-            if(c) {
-                const el = document.createElement('div'); 
-                el.className = 'clash-card';
-                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.src='https://placehold.co/100?text=?'"><h4>${c.name}</h4>`;
-                el.onclick = () => { 
-                    if(confirm(`Jouer "${c.name}" ?`)) playCardAction(p.name, c); 
+            if (c) {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'clash-card';
+                // Override CSS pour le mobile
+                cardEl.style.background = '#2c3e50';
+                cardEl.style.borderColor = '#4a6fa5';
+                cardEl.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+                
+                cardEl.innerHTML = `
+                    <div class="cost" style="width:24px; height:24px; line-height:22px; font-size:14px;">${c.cost}</div>
+                    <img src="${c.img}" onerror="this.src='https://placehold.co/80'" style="border-radius:4px;">
+                    <h4 style="color:#fcc22d; font-family:'Lilita One', sans-serif; font-size:0.8rem; margin-top:5px;">${c.name}</h4>
+                `;
+                
+                // Action au clic (Jouer la carte)
+                cardEl.onclick = () => {
+                   if(confirm(`Jouer la carte ${c.name} ?`)) {
+                       playCardAction(p.name, c);
+                   }
                 };
-                deckGrid.appendChild(el);
+                deckGrid.appendChild(cardEl);
             }
         });
+    } else {
+        deckGrid.innerHTML = '<p style="color:#888; text-align:center; width:100%; font-style:italic">Aucune carte équipée.</p>';
     }
-    dashboard.appendChild(deckGrid);
-    container.appendChild(dashboard);
+
+    deckSection.appendChild(deckGrid);
+    container.appendChild(deckSection);
 }
 
 // Fonction pour "Jouer" une carte (Envoyer dans le chat)
