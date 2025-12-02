@@ -1407,66 +1407,6 @@ option {
     box-shadow: 0 -10px 30px rgba(0,0,0,0.8) !important;
 }
 
-/* =========================================================
-   🧨 NETTOYAGE ULTIME (SUPPRESSION TOTALE DU FOND CARREAUX)
-   ========================================================= */
-
-/* 1. ON TUE LE FOND À CARREAUX SUR TOUTE LA PAGE (BODY) */
-body {
-    background-image: none !important; /* Plus d'image de fond */
-    background-color: #0f151c !important; /* Fond noir/bleu nuit profond */
-    
-    /* On désactive le centrage qui crée l'effet "boîte flottante" */
-    display: block !important; 
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* 2. L'ÉCRAN DU JOUEUR DOIT PRENDRE 100% DE L'ESPACE */
-#player-screen, #player-screen.active {
-    width: 100vw !important;       /* Largeur totale */
-    height: 100vh !important;      /* Hauteur totale */
-    max-width: 100% !important;
-    
-    background: transparent !important; /* Transparent pour utiliser le noir du body */
-    background-image: none !important;  /* Sécurité double */
-    
-    border: none !important;       /* Pas de bordure */
-    box-shadow: none !important;   /* Pas d'ombre externe */
-    margin: 0 !important;          /* Pas de marge */
-    border-radius: 0 !important;   /* Coins carrés pour l'écran global */
-}
-
-/* 3. LE CONTENU INTERNE S'ÉTIRE */
-#player-content {
-    width: 100% !important;
-    padding: 0 !important; /* On gère les marges élément par élément */
-    padding-bottom: 80px !important; /* Place pour le menu du bas */
-}
-
-/* 4. LE PROFIL (ABDEL) COLLE AUX BORDS */
-.mobile-profile-header {
-    margin: 0 !important;         /* Colle en haut et sur les côtés */
-    width: 100% !important;
-    border-radius: 0 0 30px 30px !important; /* Arrondi seulement en bas */
-    box-shadow: 0 10px 20px rgba(0,0,0,0.5) !important;
-    background: linear-gradient(180deg, #2c3e50 0%, #121820 100%) !important;
-}
-
-/* 5. ON REDONNE UN PEU D'ESPACE AUX ÉLÉMENTS INTERNES */
-/* Pour ne pas que le texte touche le bord de l'écran */
-.inventory-box, 
-.mobile-section-title, 
-.card-grid {
-    margin-left: 15px !important;
-    margin-right: 15px !important;
-}
-
-/* 6. COULEUR DE FOND DES LISTES (Inventaire, etc) */
-.inventory-box {
-    background-color: rgba(255, 255, 255, 0.05) !important; /* Très léger fond */
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
 
 /* =========================================================
    🎨 RETOUR DES CARREAUX (DANS L'INTERFACE SEULEMENT)
