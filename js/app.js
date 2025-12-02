@@ -1961,71 +1961,66 @@ function updateLocalData(newData) {
     render();
 }
 
-// --- ANIMATION COFFRE (CORRECTIF FINAL) ---
+// --- ANIMATION COFFRE (CORRIGÉE : TIMING & CADRAGE) ---
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
-    // ON CIBLE LE CONTENEUR GLOBAL POUR EFFACER LA VIEILLE IMAGE "?"
     const container = overlay.querySelector('.chest-anim-container');
     
     const card = gameData.cards.find(c => c.id === newCardId);
     if(!card) return;
 
-    // Lien fiable vers le GIF du coffre
     const chestUrl = "https://media.tenor.com/J1y9sWv7tSAAAAAC/clash-royale-legendary-chest.gif";
 
-    // On écrase tout le contenu précédent (ce qui supprime le "?" bugué)
+    // On prépare le HTML. Note les deux IDs séparés : "phase-coffre" et "phase-carte"
     container.innerHTML = `
         <div class="light-burst"></div>
-        <div style="position:relative; display:flex; flex-direction:column; align-items:center; width:100%;">
-            
+        
+        <div id="phase-coffre" style="display:block; text-align:center;">
             <img src="${chestUrl}?t=${new Date().getTime()}" 
-                 style="width:250px; height:auto; margin-bottom:-40px; z-index:2; filter: drop-shadow(0 0 20px gold);">
+                 style="width:250px; height:auto; filter: drop-shadow(0 0 20px gold);">
+        </div>
+
+        <div id="phase-carte" style="display:none; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%;">
             
-            <div id="anim-card-reveal" style="display:none; transform:scale(0.1); transition:transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
-                <div class="clash-card" style="transform: scale(1.3); background:white; margin-bottom:20px; box-shadow: 0 0 40px white; border: 4px solid gold;">
-                    <div class="cost">${card.cost}</div>
-                    
-                    <img src="${card.img}" 
-                         onerror="this.src='./assets/epee.png'; this.onerror=null;"
-                         style="min-height:100px; object-fit:contain;">
-                         
-                    <h4>${card.name}</h4>
-                </div>
+            <div class="clash-card" style="transform: scale(1.5); background:white; margin-bottom:30px; box-shadow: 0 0 50px gold; border: 4px solid gold;">
+                <div class="cost">${card.cost}</div>
+                <img src="${card.img}" onerror="this.src='./assets/epee.png'; this.onerror=null;" style="min-height:100px; object-fit:contain;">
+                <h4>${card.name}</h4>
             </div>
 
-            <div id="anim-text-reveal" style="display:none; color:#ffd700; text-shadow:0 3px 6px black; text-align:center; z-index:5;">
-                <div style="font-size:1.5rem; margin-bottom:5px;">NOUVELLE CARTE !</div>
-                <strong style="font-size:2rem; text-transform:uppercase; letter-spacing:1px;">${card.name}</strong>
+            <div style="color:#ffd700; text-shadow:0 3px 6px black; text-align:center;">
+                <div style="font-size:1.5rem; margin-bottom:5px; color:white;">NOUVELLE CARTE !</div>
+                <strong style="font-size:2.5rem; text-transform:uppercase; letter-spacing:2px;">${card.name}</strong>
             </div>
+            
+            <small style="color:white; margin-top:20px; opacity:0.8;">(Cliquez pour fermer)</small>
         </div>
     `;
     
+    // 1. On affiche l'overlay global
     overlay.classList.remove('hidden');
 
-    // SÉQUENCE D'ANIMATION (TIMING)
-    
-    // À 1.5 secondes : Le coffre est ouvert -> La carte POP !
+    // 2. TIMING : On attend 2.5 secondes que le coffre s'ouvre
     setTimeout(() => {
-        const cardDiv = document.getElementById('anim-card-reveal');
-        const textDiv = document.getElementById('anim-text-reveal');
+        const divCoffre = document.getElementById('phase-coffre');
+        const divCarte = document.getElementById('phase-carte');
         
-        if(cardDiv && textDiv) {
-            cardDiv.style.display = 'block'; // On affiche
-            textDiv.style.display = 'block';
+        if(divCoffre && divCarte) {
+            divCoffre.style.display = 'none'; // On cache le coffre
+            divCarte.style.display = 'flex';  // On affiche la carte
             
-            // Petite pause technique pour permettre l'effet "Zoom"
-            setTimeout(() => {
-                cardDiv.style.transform = 'scale(1)'; 
-            }, 50);
+            // Petit effet "Pop"
+            divCarte.style.animation = "popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
         }
-    }, 1500);
+    }, 2500); // 2500ms = 2.5 secondes
 
-    // À 6 secondes : Fin
-    setTimeout(() => {
-        overlay.classList.add('hidden');
-    }, 6000);
-    
-    overlay.onclick = () => overlay.classList.add('hidden');
+    // Clic pour fermer (uniquement possible après l'apparition)
+    overlay.onclick = () => {
+        // On vérifie si la carte est déjà affichée avant de laisser fermer
+        if(document.getElementById('phase-carte').style.display === 'flex') {
+            overlay.classList.add('hidden');
+        }
+    };
 }
 
 // 8. SYSTÈME (SAUVEGARDE & IMPORT)

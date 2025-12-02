@@ -300,17 +300,38 @@ main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
 .modal-content { background: white; padding: 20px; border-radius: 10px; max-width: 90%; text-align: center; position: relative;}
 .close-modal { position: absolute; top: 5px; right: 10px; font-size: 20px; cursor: pointer; }
 
-/* CHEST ANIMATION */
-#chest-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: flex; justify-content: center; align-items: center; }
-.hidden { display: none !important; }
-.chest-anim-container { text-align: center; color: white; animation: popIn 0.5s ease; }
-.light-burst {
-    position: absolute; top: 50%; left: 50%; width: 500px; height: 500px;
-    background: radial-gradient(circle, gold, transparent); opacity: 0.5;
-    transform: translate(-50%, -50%); z-index: -1; animation: spin 4s linear infinite;
+/* --- CORRECTIF ANIMATION COFFRE --- */
+
+/* L'overlay noir qui prend tout l'écran */
+#chest-overlay { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    background: rgba(0,0,0,0.92); /* Très sombre pour bien voir la carte */
+    z-index: 10000; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
 }
-@keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
-@keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* Le conteneur qui centre le contenu */
+.chest-anim-container { 
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Animation d'apparition de la carte */
+@keyframes popIn { 
+    0% { transform: scale(0); opacity: 0; } 
+    80% { transform: scale(1.1); opacity: 1; } 
+    100% { transform: scale(1); } 
+}
 
 /* FORMULAIRES DYNAMIQUES */
 .form-group { margin-bottom: 15px; }
@@ -616,10 +637,33 @@ p { color: #ddd; }
 
 /* FIX TAILLE CARTE ANIMATION */
 #new-card-display {
+    /* Positionnement pour prendre tout l'écran */
+    position: fixed; 
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* Passe au-dessus de tout (coffre, menus, etc.) */
+    z-index: 10000; 
+    
+    /* Fond noir semi-transparent pour cacher l'arrière-plan */
+    background-color: rgba(0, 0, 0, 0.85);
+    
+    /* Centrage parfait */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    
+    /* Animation d'apparition avec un petit rebond */
+    animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* On ajoute une petite lueur dorée derrière l'image pour le style */
+#new-card-display img {
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.4);
+    border-radius: 10px;
 }
 
 /* Force l'image à ne pas dépasser une certaine hauteur */
