@@ -2382,7 +2382,7 @@ function openQuestModal(onSave) {
         const desc = document.getElementById('q-desc').value;
         const giverId = document.getElementById('q-giver').value;
         
-        // Récupérerd tous les IDs cochés
+        // Récupérer tous les IDs cochés
         const assignedTo = [];
         document.querySelectorAll('.q-player-check:checked').forEach(box => {
             assignedTo.push(box.value);
