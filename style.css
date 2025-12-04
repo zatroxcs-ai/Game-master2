@@ -1,243 +1,1162 @@
 /* =========================================
-   👑 THEME "ROYALE UI" - CLEAN VERSION
+   👑 THEME "ROYALE UI" - LOCAL (OFFLINE)
    ========================================= */
 
+/* 1. DÉCLARATION DE LA POLICE LOCALE */
 @font-face {
     font-family: 'Lilita One';
+    /* Le chemin doit pointer vers ton fichier */
     src: url('./assets/fonts/LilitaOne-Regular.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
 
 :root {
+    /* Palette Clash (Plus vibrante) */
     --ui-blue-dark: #2c3e50;
     --ui-blue-light: #3498db;
     --ui-gold: #f1c40f;
     --ui-gold-shadow: #c27c0e;
     --ui-red: #e74c3c;
+    --ui-red-shadow: #c0392b;
     --ui-green: #2ecc71;
-    --cr-blue: #3498db;     /* Alias pour compatibilité */
-    --cr-blue-dark: #2c3e50; /* Alias */
-    --cr-gold: #fcc22d;     /* Alias */
-    --cr-wood: #8e44ad;     /* Alias (modifié pour le style) */
+    --ui-green-shadow: #27ae60;
+    --ui-bg-panel: #fdfdfd;
+    --ui-text-dark: #2c3e50;
+    --ui-radius: 12px;
 }
 
-* { box-sizing: border-box; }
-
-/* --- 1. CONFIGURATION DU FOND (PC & GLOBAL) --- */
+/* 2. TYPOGRAPHIE GLOBALE */
 body {
-    font-family: 'Roboto', sans-serif;
+    /* Roboto par défaut, ou police système si pas d'internet */
+    font-family: 'Roboto', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+/* Application de la police locale aux titres */
+h1, h2, h3, h4, 
+.btn, 
+.profile-name,
+#form-title,
+.logo {
+    font-family: 'Lilita One', cursive !important;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+}
+
+/* ... LE RESTE DU CSS RESTE INCHANGÉ ... */
+
+* { box-sizing: border-box; }
+body {
+    font-family: 'Clash Font', 'Roboto', sans-serif;
     margin: 0;
     padding: 0;
     height: 100vh;
     
-    /* LE FOND À CARREAUX POUR TOUT LE MONDE PAR DÉFAUT */
-    background-image: url('./assets/ui-tex-2.png'); 
+    /* --- NOUVEAU FOND --- */
+    /* On charge l'image de texture */
+    background-image: url('./assets/ui-tex-2.png');
+    /* On la fait se répéter horizontalement et verticalement */
     background-repeat: repeat;
+    /* Le fond reste fixe quand on scrolle (donne un effet plus solide) */
     background-attachment: fixed;
-    background-color: #1c2e4a; /* Couleur de secours */
+    /* Couleur de fond de secours si l'image ne charge pas */
+    background-color: var(--cr-blue-dark);
     
     color: white;
-    overflow: hidden; 
-    
-    /* Centrage pour l'écran de login */
+    overflow: hidden; /* Empêche le scroll global */
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* TYPOGRAPHIE CLASH */
-h1, h2, h3, h4, .btn, .profile-name, #form-title, .logo, .mobile-name, .mobile-section-title, .resource-pill {
-    font-family: 'Lilita One', cursive !important;
-    letter-spacing: 1px;
-    text-transform: uppercase;
+/* Sécurité globale : Si un écran n'a pas la classe .active, il DOIT être caché */
+.screen:not(.active) {
+    display: none !important;
 }
 
-/* GESTION DES ÉCRANS */
-.screen { display: none; width: 100%; height: 100%; flex-direction: column; }
+/* LAYOUT */
+.screen { display: none; height: 100vh; flex-direction: column; }
 .screen.active { display: flex; }
 
-/* --- 2. CONFIGURATION SPÉCIFIQUE MOBILE (JOUEUR) --- */
-#player-screen.active {
-    /* FORCE LE PLEIN ÉCRAN PAR DESSUS TOUT */
-    position: fixed !important;
-    top: 0; left: 0;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 500;
-    
-    /* FOND À CARREAUX SPÉCIFIQUE */
-    background-image: url('./assets/ui-tex-2.png') !important;
-    background-repeat: repeat !important;
-    background-color: #1c2e4a !important;
-    
-    /* PAS DE MARGES NI BORDURES */
-    margin: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
+/* COMPONENTS */
+.btn {
+    border: none; padding: 10px 20px; border-radius: 8px;
+    font-weight: 900; text-transform: uppercase; cursor: pointer;
+    color: white; transition: transform 0.1s;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+    margin: 5px;
+}
+.btn:active { transform: translateY(4px); box-shadow: none; }
+.btn-primary { background-color: var(--cr-blue); border-bottom: 4px solid var(--cr-blue-dark); }
+.btn-secondary { background-color: var(--cr-gold); color: #444; border-bottom: 4px solid #dba61d; }
+
+.panel {
+    background: white; padding: 20px; border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1); text-align: center;
 }
 
-#player-content {
-    flex: 1;
-    width: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-bottom: 90px; /* Place pour le dock */
-    -webkit-overflow-scrolling: touch;
-}
+/* LOGIN */
+#login-screen { justify-content: center; align-items: center; background: radial-gradient(circle, var(--cr-blue), var(--cr-blue-dark)); }
+#login-screen h1 { color: var(--cr-gold); text-shadow: 0 2px 0 #000; font-size: 2.5rem; margin-bottom: 20px;}
 
-/* HEADER MOBILE (ABDEL) */
-.mobile-profile-header {
-    background: linear-gradient(180deg, #375679 0%, #1e3c5a 100%);
-    border-radius: 0 0 30px 30px;
-    border-bottom: 4px solid rgba(0,0,0,0.2);
-    padding: 20px 15px;
-    margin-bottom: 20px;
-    text-align: center;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
+/* HEADER MJ */
+/* --- FIX INTERFACE MJ (CADRE PROPRE) --- */
 
-.mobile-avatar {
-    width: 90px; height: 90px;
-    border-radius: 18px;
-    border: 4px solid var(--cr-gold);
-    box-shadow: 0 5px 10px rgba(0,0,0,0.5);
-    background: #000; object-fit: cover;
-}
+/* --- FIX PROPORTIONS (DASHBOARD MJ) --- */
 
-.mobile-name {
-    font-size: 2.2rem; color: white;
-    text-shadow: 0 3px 0 #000, 0 0 15px rgba(52, 152, 219, 0.6);
-    margin: 10px 0 5px 0;
-}
-
-.resource-pill {
-    display: inline-flex; align-items: center;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 20px; padding: 4px 12px 4px 4px; margin: 3px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-/* SECTIONS MOBILE */
-.mobile-section-title {
-    color: var(--cr-gold);
-    text-shadow: 0 2px 0 #000;
-    font-size: 1.4rem;
-    margin: 20px 20px 10px 20px; /* Marges latérales */
-    border-bottom: 2px solid rgba(255,255,255,0.1);
-}
-
-.inventory-box {
-    margin: 0 20px;
-    background-color: rgba(0, 0, 0, 0.4); /* Fond sombre transparent */
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px; padding: 15px; color: white;
-    min-height: 60px; white-space: pre-wrap;
-}
-
-.card-grid {
-    padding: 0 20px;
-    display: grid; 
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); 
-    gap: 15px;
-}
-
-/* MENU DU BAS (DOCK) */
-#player-nav {
-    position: fixed; bottom: 0; left: 0; width: 100%;
-    height: 75px;
-    background: #18202b; /* Très sombre */
-    border-top: 4px solid #3d2e18;
-    display: flex; justify-content: space-around; align-items: center;
-    padding-bottom: env(safe-area-inset-bottom);
-    z-index: 1000;
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.6);
-}
-
-#player-nav button {
-    background: transparent; border: none;
-    color: #546e7a; /* Inactif */
-    display: flex; flex-direction: column; align-items: center;
-    font-size: 0.7rem; font-weight: bold; gap: 4px;
-    transition: all 0.2s;
-}
-
-#player-nav button .nav-icon { font-size: 1.8rem; filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)); }
-
-#player-nav button.active {
-    color: var(--cr-gold);
-    transform: translateY(-8px);
-}
-#player-nav button.active .nav-icon {
-    filter: drop-shadow(0 0 8px rgba(252, 194, 45, 0.8));
-    transform: scale(1.1);
-}
-
-/* --- 3. INTERFACE MJ (PC) --- */
+/* 1. Conteneur Principal MJ */
 #dm-screen {
-    background: rgba(255,255,255,0.9); /* Fond panneau MJ */
-    width: 100%; max-width: 1400px; /* Limite largeur sur grand écran */
-    height: 95vh;
-    border-radius: 10px;
-    box-shadow: 0 0 50px rgba(0,0,0,0.5);
-    display: flex; flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Pas de scroll sur le body */
+}
+
+/* 2. La Barre de Menu (Header) */
+#dm-screen header {
+    flex: 0 0 60px; /* Hauteur fixe : 60px */
+    width: 100%;
+    background: rgba(44, 62, 80, 0.95); /* Bleu sombre pro */
+    border-bottom: 4px solid var(--cr-gold);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    z-index: 100;
+}
+
+#dm-nav button {
+    color: #ddd;
+    font-size: 1rem;
+    margin: 0 10px;
+    padding: 15px 5px; /* Zone de clic plus haute */
+    border-bottom: 4px solid transparent; /* Pour éviter le saut au survol */
+}
+#dm-nav button.active {
+    color: var(--cr-gold);
+    border-bottom: 4px solid var(--cr-gold);
+}
+
+/* 3. La Zone de Contenu (Le Grand Espace) */
+#dm-content {
+    /* Calcul précis : Hauteur totale - Hauteur du header */
+    height: calc(100vh - 60px); 
+    width: 100%;
+    
+    /* On enlève les marges énormes */
+    margin: 0;
+    padding: 20px;
+    
+    /* Fond très légèrement blanc pour lisibilité, mais on voit la texture */
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(5px);
+    
+    overflow-y: auto; /* Scroll uniquement ici */
+    box-sizing: border-box;
+}
+
+/* 4. Adaptation des Panneaux internes */
+/* Les panneaux prennent maintenant toute la largeur dispo */
+.panel {
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    width: 100%; 
+    max-width: 1200px; /* On limite juste pour pas que le texte soit illisible sur écran géant */
+    margin: 0 auto 10px auto; /* Centré */
+}
+
+/* 5. La Carte en mode Cinéma */
+/* On force la carte à prendre le max de place possible */
+#dm-content .map-container {
+    width: 100%;
+    height: 75vh; /* Prend 75% de la hauteur de l'écran */
+    border: 4px solid #333;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    margin-bottom: 20px;
+}
+
+#dm-nav button {
+    background: transparent; border: none; color: rgba(255,255,255,0.7);
+    font-weight: bold; cursor: pointer; padding: 5px 10px;
+}
+#dm-nav button.active { color: var(--cr-gold); border-bottom: 3px solid var(--cr-gold); }
+
+/* CONTENT GENERAL */
+main { flex: 1; overflow-y: auto; padding: 15px; position: relative; }
+
+
+/* MODULE: MAP (CADRAGE CORRIGÉ) */
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 600px; /* Tu peux augmenter ça si tu veux une carte plus grande */
+    background: #1a1a1a; /* Fond gris foncé pour les bandes noires */
+    overflow: hidden;
+    border: 4px solid var(--cr-wood);
+    border-radius: 8px;
+    
+    /* Centre l'image parfaitement */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.map-img {
+    width: 100%;
+    height: 100%;
+    
+    /* C'est LA ligne importante : */
+    /* 'contain' = Affiche tout (avec bandes noires si besoin) */
+    /* 'cover' = Remplit tout (coupe les bords) */
+    object-fit: contain; 
+}
+.pawn {
+    position: absolute; width: 40px; height: 40px; border-radius: 50%;
+    border: 3px solid white; background-size: cover; cursor: grab;
+    transform: translate(-50%, -50%); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    transition: top 0.3s, left 0.3s; z-index: 10;
+}
+.pawn:active { cursor: grabbing; transform: translate(-50%, -50%) scale(1.1); }
+.pawn-label {
+    position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.7); color: white; font-size: 10px; padding: 2px 4px; border-radius: 4px;
+    white-space: nowrap; pointer-events: none;
+}
+
+/* MODULE: CARDS */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.clash-card {
+    background: white; border: 2px solid #ccc; border-radius: 8px; padding: 5px;
+    text-align: center; position: relative; overflow: hidden;
+}
+.clash-card img { width: 100%; height: auto; border-radius: 4px; }
+.clash-card h4 { margin: 5px 0; font-size: 0.9rem; }
+.clash-card .cost {
+    position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+    background: #d0006f; color: white; border-radius: 50%;
+    font-size: 12px; line-height: 20px; font-weight: bold;
+    border: 2px solid white;
+}
+
+/* MODULE: CHAT */
+.chat-window { display: flex; flex-direction: column; height: 100%; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 10px; background: #e0e0e0; border-radius: 8px; margin-bottom: 10px; }
+.message { margin-bottom: 8px; display: flex; flex-direction: column; }
+.message.self { align-items: flex-end; }
+.bubble {
+    background: white; padding: 8px 12px; border-radius: 12px;
+    max-width: 70%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.message.self .bubble { background: var(--cr-blue); color: white; }
+.chat-input-area { display: flex; gap: 5px; }
+
+/* MODULE: RELATIONS */
+/* MODULE RELATIONS */
+.relation-matrix {
+    border: 2px solid #333;
+    background: #666;
+    border-radius: 4px;
+}
+.rel-cell {
+    background: white;
+    text-align: center;
+    transition: background 0.2s;
+}
+.rel-header {
+    background: var(--cr-wood);
+    color: white;
+    font-size: 0.8rem;
+}
+/* États */
+.rel-neutral { background-color: #f0f0f0; }
+.rel-friendly { background-color: #d4edda; border: 1px solid #c3e6cb; } /* Vert */
+.rel-hostile { background-color: #f8d7da; border: 1px solid #f5c6cb; } /* Rouge */
+.rel-ally { background-color: #cce5ff; border: 1px solid #b8daff; } /* Bleu */
+
+/* PLAYER MOBILE SPECIFIC */
+#player-nav button {
+    background: none;
+    border: none;
+    flex: 1; /* Le bouton prend toute la largeur disponible */
+    height: 100%; /* Le bouton prend toute la hauteur de la barre */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+#player-nav button {
+    flex: 1; background: none; border: none; font-size: 0.8rem;
+    display: flex; flex-direction: column; align-items: center;
+}
+#player-nav button.active { color: var(--cr-blue); font-weight: bold; }
+.resources-bar { display: flex; gap: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.1); padding: 5px; border-radius: 10px;}
+
+/* MODALS & OVERLAYS */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; }
+.modal-content { background: white; padding: 20px; border-radius: 10px; max-width: 90%; text-align: center; position: relative;}
+.close-modal { position: absolute; top: 5px; right: 10px; font-size: 20px; cursor: pointer; }
+
+/* CHEST ANIMATION */
+#chest-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: flex; justify-content: center; align-items: center; }
+.hidden { display: none !important; }
+.chest-anim-container { text-align: center; color: white; animation: popIn 0.5s ease; }
+.light-burst {
+    position: absolute; top: 50%; left: 50%; width: 500px; height: 500px;
+    background: radial-gradient(circle, gold, transparent); opacity: 0.5;
+    transform: translate(-50%, -50%); z-index: -1; animation: spin 4s linear infinite;
+}
+@keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* FORMULAIRES DYNAMIQUES */
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: var(--cr-blue-dark); }
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+    width: 100%; padding: 10px; border: 2px solid #ccc; border-radius: 6px;
+    font-family: inherit; font-size: 1rem;
+}
+.form-group input:focus { border-color: var(--cr-blue); outline: none; }
+.preview-img { display: block; width: 60px; height: 60px; object-fit: cover; margin: 5px auto; border-radius: 50%; border: 2px solid var(--cr-wood); }
+
+/* MODULE QUÊTES */
+.quest-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+    margin-bottom: 12px;
+    border-left: 6px solid var(--cr-gold); /* Bordure dorée style CR */
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    position: relative;
+    transition: transform 0.1s;
+}
+.quest-card:active { transform: scale(0.98); }
+
+.quest-giver {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px; /* Carré arrondi style icône appli */
+    border: 2px solid #333;
+    object-fit: cover;
+    margin-right: 15px;
+    background: #ccc;
+    flex-shrink: 0;
+}
+
+.quest-info { flex: 1; text-align: left; }
+.quest-title { font-weight: 900; color: var(--cr-blue-dark); font-size: 1.1rem; margin: 0 0 5px 0; }
+.quest-desc { font-size: 0.85rem; color: #666; font-style: italic; margin-bottom: 5px; }
+.quest-reward { 
+    background: var(--cr-gold); 
+    color: #432d00; 
+    font-weight: bold; 
+    padding: 2px 8px; 
+    border-radius: 10px; 
+    font-size: 0.8rem; 
+    display: inline-block;
+}
+
+/* --- INTERFACE JOUEUR AMÉLIORÉE --- */
+
+/* Le tableau de bord global */
+.player-dashboard {
+    text-align: center;
+    padding-bottom: 20px;
+}
+
+/* En-tête de profil */
+.profile-header {
+    background: linear-gradient(to bottom, #2a4b70, #1e3c5a);
+    color: white;
+    padding: 20px 10px;
+    border-radius: 0 0 20px 20px;
+    margin: -15px -15px 15px -15px; /* Pour coller aux bords */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.profile-avatar {
+    width: 80px; height: 80px;
+    border-radius: 12px;
+    border: 3px solid var(--cr-gold);
+    background: #000;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.profile-name {
+    margin: 10px 0 5px 0;
+    font-size: 1.5rem;
+    font-weight: 900;
+    text-shadow: 0 2px 0 #000;
+    font-family: 'Roboto', sans-serif;
+}
+
+/* Barres de ressources (Pillules) */
+.resource-row {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.res-pill {
+    background: rgba(0,0,0,0.5);
+    padding: 5px 15px 5px 5px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.res-icon {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    margin-right: 8px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Inventaire Interactif */
+.inventory-box {
+    width: 100%;
+    background: #fdf6e3; /* Parchemin clair */
+    border: 2px solid var(--cr-wood);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: monospace;
+    min-height: 80px;
+    margin-bottom: 20px;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Grille de deck interactive */
+.player-deck .clash-card {
+    transform: scale(1);
+    transition: transform 0.1s, border-color 0.2s;
+}
+.player-deck .clash-card:active {
+    transform: scale(0.95);
+    border-color: var(--cr-blue);
+}
+.play-hint {
+    font-size: 0.7rem; color: #888; margin-top: -5px; margin-bottom: 10px;
+}
+
+/* --- REFONTE MOBILE (APP STYLE) --- */
+
+/* 1. Conteneur Principal JOUEUR */
+#player-screen {
+    /* Style visuel (toujours appliqué) */
+    background-color: #1c2e4a;
+    background-image: radial-gradient(#2a4b70 2px, transparent 2px);
+    background-size: 20px 20px;
+    
+    /* IMPORTANT : Caché par défaut ! */
+    display: none; 
+}
+
+/* 2. Quand l'écran Joueur est ACTIF */
+#player-screen.active {
+    /* C'est ICI qu'on l'affiche */
+    display: flex; 
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 
-#dm-screen header {
-    background: #2c3e50; color: white; padding: 10px 20px;
-    display: flex; justify-content: space-between; align-items: center;
+/* 2. Zone de Contenu (Scrollable) */
+#player-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    padding-bottom: 80px; /* Espace pour ne pas cacher le contenu derrière le menu */
+    -webkit-overflow-scrolling: touch; /* Scroll fluide iOS */
 }
 
-#dm-content {
-    flex: 1; padding: 20px; overflow-y: auto;
-    background: #f0f2f5; color: #333;
+/* 3. Barre de Navigation (Dock en bas) */
+#player-nav {
+    flex-shrink: 0;
+    height: 70px; /* Hauteur fixe */
+    background: #111;
+    border-top: 4px solid var(--cr-wood);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom); /* Protège la barre home iPhone X+ */
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+    z-index: 1000;
 }
 
-/* ÉLÉMENTS MJ */
-.panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 10px; }
-.btn { border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.2); }
-.btn:active { transform: translateY(4px); box-shadow: none; }
-.btn-primary { background: var(--cr-blue); border-bottom: 4px solid #2980b9; }
-.btn-secondary { background: var(--cr-gold); color: #444; border-bottom: 4px solid #d4ac0d; }
-
-/* MODALES */
-.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
-.modal-content { background: white; padding: 20px; border-radius: 10px; max-width: 90%; width: 500px; max-height: 90vh; overflow-y: auto; position: relative; color: #333; }
-.modal-xl { width: 900px; max-width: 95%; display: flex; flex-direction: column; height: 80vh; }
-.close-modal, .close-form { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: red; font-weight: bold; }
-
-/* CARTES */
-.clash-card {
-    background: #2c3e50; border: 2px solid #4a6fa5; border-radius: 8px;
-    padding: 5px; text-align: center; position: relative; color: white;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-}
-.clash-card img { width: 100%; border-radius: 4px; }
-.clash-card h4 { color: var(--cr-gold); margin: 5px 0 0 0; font-size: 0.8rem; }
-.clash-card .cost {
-    position: absolute; top: -5px; left: -5px; width: 24px; height: 24px;
-    background: #d0006f; color: white; border-radius: 50%; border: 2px solid white;
-    font-weight: bold; line-height: 20px; font-size: 14px;
+#player-nav button {
+    background: none;
+    border: none;
+    box-shadow: none; /* Reset du style bouton par défaut */
+    color: #888;
+    font-size: 0.7rem;
+    padding: 5px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s;
 }
 
-/* ANIMATION COFFRE */
-#chest-overlay {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(0,0,0,0.95); z-index: 10000;
+#player-nav button .nav-icon {
+    font-size: 1.5rem;
+    display: block;
+    filter: grayscale(100%);
+    transition: transform 0.2s;
+}
+
+/* État Actif (Bouton sélectionné) */
+#player-nav button.active {
+    color: var(--cr-gold);
+    border-bottom: none; /* Enlève la bordure jaune moche de l'ancien code */
+}
+
+#player-nav button.active .nav-icon {
+    filter: grayscale(0%);
+    transform: translateY(-5px) scale(1.2);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* 4. Cartes et Panneaux (Style CR) */
+.player-dashboard .profile-header {
+    margin-top: 0; /* Colle au haut de l'écran */
+    border-radius: 0 0 25px 25px;
+    background: linear-gradient(180deg, #3867d6 0%, #2a4b70 100%);
+    border-bottom: 4px solid rgba(0,0,0,0.2);
+}
+
+/* Reset général pour mobile */
+h2, h3 { color: white; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+p { color: #ddd; }
+
+/* GESTIONNAIRE DE DECK (MJ) */
+.deck-manager-section {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 8px;
+    background: #f9f9f9;
+    margin-bottom: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.mini-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+}
+
+.mini-card {
+    position: relative;
+    border: 1px solid #999;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    overflow: hidden;
+    text-align: center;
+    font-size: 0.7rem;
+    transition: transform 0.1s;
+}
+.mini-card:hover { transform: scale(1.05); border-color: var(--cr-blue); }
+.mini-card img { width: 100%; height: auto; display: block; }
+.mini-card .action-overlay {
+    position: absolute; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.5); color: white;
+    display: flex; justify-content: center; align-items: center;
+    font-weight: bold; font-size: 1.5rem;
+    opacity: 0; transition: opacity 0.2s;
+}
+.mini-card:hover .action-overlay { opacity: 1; }
+
+/* ANIMATION COFFRE & OVERLAY */
+.hidden { display: none !important; }
+
+.overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 9999; /* Très haut z-index */
     display: flex; justify-content: center; align-items: center;
 }
-.chest-anim-container { text-align: center; width: 100%; }
+
+.chest-anim-container {
+    text-align: center; color: white;
+    animation: popIn 0.5s ease;
+    position: relative;
+}
+
+.chest-img {
+    width: 200px; height: auto;
+    margin-bottom: 20px;
+}
+
+/* Rayons de lumière tournants */
+.light-burst {
+    position: absolute; top: 50%; left: 50%;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(255,215,0,0.8), transparent 60%);
+    transform: translate(-50%, -50%);
+    z-index: -1;
+    animation: spin 5s linear infinite;
+}
+
+@keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-/* SYSTÈME D'ONGLETS MJ */
-#dm-nav button { background: none; border: none; color: #aaa; font-weight: bold; cursor: pointer; margin: 0 5px; padding: 5px; }
-#dm-nav button.active { color: var(--cr-gold); border-bottom: 2px solid var(--cr-gold); }
+/* FIX TAILLE CARTE ANIMATION */
+#new-card-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
 
-/* LISTES DECK MANAGER */
-.deck-manager-section { background: #f9f9f9; border: 1px solid #ccc; padding: 10px; border-radius: 8px; margin-bottom: 10px; min-height: 100px; }
-.mini-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 5px; }
-.mini-card { border: 2px solid #ccc; border-radius: 4px; background: white; cursor: pointer; position: relative; text-align: center; }
-.mini-card img { width: 100%; display: block; }
+/* Force l'image à ne pas dépasser une certaine hauteur */
+#new-card-display .clash-card img {
+    max-height: 150px; /* Taille raisonnable sur mobile */
+    width: auto;
+    object-fit: contain;
+}
+
+/* Ajustement du texte de félicitations */
+#new-card-display p {
+    font-size: 1rem !important;
+    margin-top: 15px;
+    padding: 0 20px;
+}
+
+/* MODULE JOURNAL NARRATIF */
+.journal-entry {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-left: 5px solid var(--cr-blue);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    position: relative;
+}
+
+.journal-header {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.journal-date {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.journal-title {
+    font-size: 1.2rem;
+    color: var(--cr-blue-dark);
+    margin: 5px 0;
+}
+
+.journal-participants {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.participant-badge {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    object-fit: cover;
+}
+
+.journal-content {
+    font-family: 'Georgia', serif; /* Police avec empattement pour le côté livre */
+    line-height: 1.6;
+    color: #333;
+    white-space: pre-wrap; /* Garde les sauts de ligne */
+}
+
+/* Checkbox group pour le formulaire MJ */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 5px;
+}
+.checkbox-item {
+    background: #eee;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    user-select: none;
+}
+.checkbox-item input { margin-right: 5px; }
+
+/* MODALE LARGE (POUR LE JOURNAL) */
+.modal-large {
+    max-width: 800px !important; /* Plus large que la normale */
+    width: 95%; /* S'adapte sur mobile */
+    height: 80vh; /* Prend 80% de la hauteur */
+    display: flex;
+    flex-direction: column;
+}
+
+/* On force la zone de texte à prendre toute la place restante */
+.modal-large #form-fields {
+    flex: 1;
+    overflow-y: auto;
+}
+.modal-large textarea {
+    height: 300px; /* Zone de texte beaucoup plus haute */
+}
+
+/* MODULE SYSTÈME (BACKUP) */
+.system-box {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.file-upload-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    margin-top: 10px;
+}
+
+.file-upload-wrapper input[type=file] {
+    font-size: 100px;
+    position: absolute;
+    left: 0; top: 0; opacity: 0;
+    cursor: pointer;
+}
+
+/* MODULE RELATIONS V2 (POINT DE VUE) */
+.rel-selector {
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    overflow-x: auto;
+    background: rgba(0,0,0,0.05);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    justify-content: center; /* Centré si peu de persos */
+}
+
+.rel-avatar-select {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s;
+    opacity: 0.6;
+}
+
+.rel-avatar-select.active {
+    border-color: var(--cr-blue);
+    opacity: 1;
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.rel-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive */
+    gap: 20px;
+}
+
+.rel-column {
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+.rel-column h3 {
+    text-align: center;
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+    font-size: 1rem;
+}
+
+.rel-card {
+    display: flex;
+    align-items: center;
+    background: #f9f9f9;
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    border-left: 4px solid #ccc;
+    transition: transform 0.1s;
+}
+.rel-card:hover { transform: translateX(5px); background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+.rel-card img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px; }
+
+
+/* --- AMÉLIORATION MODALE DECK --- */
+.modal-xl {
+    max-width: 1000px !important;
+    width: 95%;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.modal-xl #form-fields { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+/* On force les zones de deck à prendre de la place */
+.modal-xl .deck-manager-section { flex: 1; min-height: 200px; }
+
+
+/* --- SYSTÈME MÉTÉO (FX CSS PUR) --- */
+.weather-layer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; /* Laisse passer les clics */
+    z-index: 10;
+    overflow: hidden;
+}
+
+/* 1. PLUIE */
+.fx-rain {
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+    background-size: 2px 30px;
+    animation: rain-fall 0.2s linear infinite;
+    opacity: 0.5;
+}
+@keyframes rain-fall { 0% { background-position: 0 0; } 100% { background-position: 5px 30px; } }
+
+/* 2. NEIGE */
+.fx-snow {
+    background-image: radial-gradient(white 2px, transparent 3px), radial-gradient(white 1px, transparent 2px);
+    background-size: 50px 50px, 30px 30px;
+    animation: snow-fall 3s linear infinite;
+}
+@keyframes snow-fall { 0% { background-position: 0 0, 0 0; } 100% { background-position: 20px 50px, -20px 30px; } }
+
+/* 3. BROUILLARD */
+.fx-fog {
+    background: linear-gradient(to right, rgba(200,200,200,0.2), rgba(255,255,255,0.6), rgba(200,200,200,0.2));
+    background-size: 200% 100%;
+    animation: fog-move 10s ease-in-out infinite alternate;
+}
+@keyframes fog-move { 0% { background-position: 0% 0%; } 100% { background-position: 100% 0%; } }
+
+/* 4. NUIT */
+.fx-night {
+    background-color: rgba(0, 5, 30, 0.6);
+    mix-blend-mode: multiply;
+}
+
+/* 5. SEPIA (Souvenir / Carte au trésor) */
+.fx-sepia {
+    backdrop-filter: sepia(0.8) contrast(1.2);
+    background: rgba(112, 66, 20, 0.2);
+}
+
+/* SÉLECTEUR D'IMAGES */
+.asset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f0f0f0;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.asset-item {
+    aspect-ratio: 1; /* Carré parfait */
+    border: 2px solid white;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+    background: white;
+}
+
+.asset-item:hover {
+    transform: scale(1.05);
+    border-color: var(--cr-blue);
+}
+
+.asset-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.asset-name {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 0.6rem;
+    text-align: center;
+    padding: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Aperçu dans le formulaire */
+.img-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.img-preview-thumb {
+    width: 40px; height: 40px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    object-fit: cover;
+    background: #eee;
+}
+
+/* --- FIX VISIBILITÉ TITRES MODALES --- */
+.modal-content h2,
+.modal-content h3,
+.modal-content h4,
+#form-title {
+    color: var(--cr-blue-dark) !important; /* Force le bleu foncé */
+    text-shadow: none !important;          /* Enlève l'ombre portée "mode nuit" */
+    
+    /* Petit bonus de style */
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--cr-gold);
+    padding-bottom: 10px;
+    margin-top: 0;
+}
+
+/* --- FIX CROIX DE FERMETURE (ROUGE) --- */
+.close-modal, 
+.close-form {
+    color: #dc3545 !important; /* Rouge vif */
+    opacity: 1 !important;     /* On enlève la transparence */
+    font-weight: bold;
+    font-size: 2rem;           /* Un peu plus gros */
+    line-height: 1;
+    transition: transform 0.2s, color 0.2s;
+    cursor: pointer;
+    
+    /* Positionnement de sécurité si pas déjà défini */
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    z-index: 1001; /* Par-dessus tout */
+}
+
+/* Effet au survol de la souris */
+.close-modal:hover, 
+.close-form:hover {
+    color: #a71d2a !important; /* Rouge plus foncé */
+    transform: scale(1.2);     /* Petit zoom */
+}
+
+/* =========================================
+   🌑 DARK MODE (ANTI-ÉBLOUISSEMENT)
+   ========================================= */
+
+/* 1. ASSOMBRISEMENT DES PANNEAUX ET FENÊTRES */
+.panel, 
+.modal-content,
+#dm-content,
+.asset-picker-content {
+    /* Bleu nuit profond semi-transparent */
+    background-color: rgba(30, 40, 55, 0.95) !important;
+    border: 1px solid #4a6fa5 !important; /* Bordure bleu acier */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+    color: #ecf0f1 !important; /* Texte blanc cassé */
+}
+
+/* 2. TITRES EN OR (Pour le contraste) */
+h1, h2, h3, h4, #form-title, .modal-content h3 {
+    color: var(--ui-gold) !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+    border-bottom-color: rgba(255,255,255,0.1) !important;
+}
+
+/* 3. CHAMPS DE SAISIE (INPUTS) SOMBRES */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    background-color: #151f2b !important; /* Fond presque noir */
+    color: white !important;
+    border: 2px solid #2c3e50 !important;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+}
+
+input:focus, textarea:focus, select:focus {
+    border-color: var(--ui-gold) !important; /* Bordure or quand on écrit */
+    background-color: #1a2634 !important;
+}
+
+/* 4. LISTES ET ÉLÉMENTS INTERNES */
+.deck-manager-section, 
+.asset-grid,
+.inventory-box {
+    background-color: #121820 !important; /* Fond très sombre pour les listes */
+    border-color: #4a6fa5 !important;
+}
+
+/* 5. TEXTE DES CARTES ET LISTES */
+.clash-card, 
+.mini-card, 
+.asset-item {
+    background-color: #2c3e50 !important; /* Cartes gris-bleu */
+    color: white !important;
+    border-color: #4a6fa5 !important;
+}
+.clash-card h4, .mini-card div {
+    color: var(--ui-gold) !important;
+}
+
+/* 6. CORRECTION SPÉCIALE POUR LE TEXTE NOIR FORCÉ PRÉCÉDEMMENT */
+#dm-content, #dm-content p, .panel, label {
+    color: #e0e0e0 !important; /* On remet le texte en clair */
+}
+
+/* Petit détail : Barre de défilement sombre */
+::-webkit-scrollbar-track {
+    background: #121820;
+}
+
+/* --- FIX ULTIME BOUTONS DORÉS (CLASH STYLE) --- */
+
+/* On cible la classe générique ET les IDs spécifiques pour être sûr que ça s'applique */
+.btn-secondary, 
+#btn-create-card, 
+#btn-new-quest, 
+#btn-new-res, 
+#btn-new-map, 
+#btn-manage-res,
+#btn-new-entry {
+    background-color: #fcc22d !important; /* Vrai Jaune Or */
+    border: none !important;
+    border-bottom: 5px solid #c99b1f !important; /* Bordure Or Foncé (Effet 3D) */
+    color: #5c4300 !important; /* Texte Marron (Contraste fort) */
+    text-shadow: none !important; /* Pas d'ombre portée sur le texte */
+    font-family: 'Lilita One', cursive !important;
+    font-size: 1.1rem !important;
+    text-transform: uppercase;
+    opacity: 1 !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Effet au survol (Brillance) */
+.btn-secondary:hover,
+#btn-create-card:hover, 
+#btn-new-quest:hover, 
+#btn-new-res:hover, 
+#btn-new-map:hover, 
+#btn-manage-res:hover,
+#btn-new-entry:hover {
+    background-color: #ffcf4b !important; /* Or plus clair */
+    filter: brightness(1.1);
+    transform: scale(1.02); /* Petit grossissement */
+}
+
+/* Effet au clic (Enfoncement) */
+.btn-secondary:active,
+#btn-create-card:active, 
+#btn-new-quest:active, 
+#btn-new-res:active, 
+#btn-new-map:active, 
+#btn-manage-res:active,
+#btn-new-entry:active {
+    border-bottom-width: 0px !important; /* L'ombre 3D disparaît */
+    transform: translateY(5px) !important; /* Le bouton descend */
+    box-shadow: none !important;
+}
+
+/* --- FIX ULTIME : ÉLIMINATION DES FONDS BLANCS --- */
+
+/* 1. Cartes de Quêtes & Entrées Journal */
+.quest-card, 
+.journal-entry {
+    background-color: rgba(30, 40, 55, 0.95) !important; /* Bleu nuit */
+    border: 1px solid #4a6fa5 !important; /* Bordure bleu acier */
+    color: #e0e0e0 !important; /* Texte clair */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Titres dans ces cartes */
+.quest-title, 
+.journal-title {
+    color: var(--ui-gold) !important; /* Or */
+    text-shadow: none !important;
+}
+
+/* Petits textes descriptifs */
+.quest-desc, 
+.journal-date, 
+.journal-content {
+    color: #ccc !important; /* Gris clair */
+}
+
+/* 2. Grilles (Deck Manager & Galerie Images) */
+.deck-manager-section, 
+.asset-grid {
+    background-color: #121820 !important; /* Fond très sombre (creux) */
+    border: 1px solid #4a6fa5 !important;
+}
+
+/* Les items dans les grilles */
+.mini-card, 
+.asset-item {
+    background-color: #2c3e50 !important; /* Tuile gris-bleu */
+    border-color: #4a6fa5 !important;
+    color: white !important;
+}
+
+/* 3. Sélecteur de Relations (La barre d'avatars) */
+.rel-selector {
+    background-color: rgba(0,0,0,0.3) !important; /* Assombrir le fond */
+    border: 1px solid #4a6fa5;
+}
+
+/* 4. Colonnes du tableau Relations */
+.rel-column {
+    background-color: rgba(30, 40, 55, 0.8) !important;
+    border-color: #4a6fa5 !important;
+}
+/* Les cartes dans les colonnes */
+.rel-card {
+    background-color: #2c3e50 !important;
+    color: white !important;
+    border-top: 1px solid #4a6fa5 !important;
+    border-right: 1px solid #4a6fa5 !important;
+    border-bottom: 1px solid #4a6fa5 !important;
+    /* On laisse la border-left de couleur (vert/rouge) */
+}
+.rel-card strong {
+    color: var(--ui-gold) !important;
+}
+
+/* 5. Menus déroulants (Options internes) */
+option {
+    background-color: #151f2b !important;
+    color: white !important;
+}

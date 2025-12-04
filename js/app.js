@@ -27,7 +27,7 @@ const LOCAL_ASSETS = [
     './assets/cards/bats.png',
     './assets/cards/goblin-gang.png',
     './assets/cards/skeleton-barrel.png',
-    './assets/cards/giant-snowball.png',
+    './assets/cards/snowball.png',
     './assets/cards/rascals.png',
     './assets/cards/royal-giant.png',
     './assets/cards/elite-barbarians.png',
@@ -76,7 +76,7 @@ const LOCAL_ASSETS = [
     './assets/cards/goblin-barrel.png',
     './assets/cards/giant-skeleton.png',
     './assets/cards/balloon.png',
-    './assets/cards/rage.png', // Ou rage.png selon le pack
+    './assets/cards/fury.png', // Ou rage.png selon le pack
     './assets/cards/rage.png',
     './assets/cards/x-bow.png',
     './assets/cards/freeze.png',
@@ -244,14 +244,6 @@ function enterGame(sid) {
         screens.player.classList.add('active');
         const me = gameData.players.find(p => p.id === currentUser.id);
         if(me) prevDeckSize = me.deck.length;
-
-        // --- CORRECTIF : On force l'onglet STATS pour le joueur ---
-        currentTab = 'p-stats';
-        
-        // On met à jour visuellement le bouton du bas
-        document.querySelectorAll('#player-nav button').forEach(b => b.classList.remove('active'));
-        const statBtn = document.querySelector('#player-nav button[data-tab="p-stats"]');
-        if(statBtn) statBtn.classList.add('active');
     }
     render();
 }
@@ -618,106 +610,122 @@ function renderMapModule(container, isEditable) {
     container.appendChild(wrapper);
 }
 
-// --- ATLAS & MÉTÉO (CORRIGÉ & PERSISTANT) ---
+// --- ATLAS (AVEC MÉTÉO) ---
 function openMapManager() {
     const modal = document.getElementById('modal-form');
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
     document.getElementById('form-title').innerText = 'Atlas des Cartes';
-    saveBtn.style.display = 'none'; // On cache le bouton global
+    container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
 
-    const renderList = () => {
-        container.innerHTML = '<div style="margin-bottom:15px"><button id="btn-new-map" class="btn btn-primary">+ Nouvelle Carte</button></div>';
+    // Options Météo
+    const weatherOptions = [
+        {value:'none', label:'☀️ Normal'},
+        {value:'rain', label:'🌧️ Pluie'},
+        {value:'snow', label:'❄️ Neige'},
+        {value:'fog', label:'🌫️ Brouillard'},
+        {value:'night', label:'🌑 Nuit'},
+        {value:'sepia', label:'📜 Sépia (Vieux)'}
+    ];
 
-        // Création (ferme la modale, c'est normal pour une création)
-        container.querySelector('#btn-new-map').onclick = () => {
+    container.querySelector('#btn-new-map').onclick = () => {
+        modal.style.display = 'none'; 
+        openFormModal('Nouvelle Carte', [
+            { name: 'name', label: 'Nom du lieu', value: '' },
+            { name: 'url', label: 'URL Image', value: '', type:'image' },
+            { name: 'weather', label: 'Ambiance / Météo', type: 'select', options: weatherOptions, value: 'none' }, // Nouveau champ
+            { name: 'desc', label: 'Description', type: 'textarea', value: '' }
+        ], (data) => {
+            const safeUrl = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+            gameData.maps.push({ 
+                id: generateId(), 
+                name: data.name || 'Sans Nom', 
+                url: safeUrl, 
+                weather: data.weather, // Sauvegarde météo
+                desc: data.desc 
+            });
+            saveData(`Carte créée : ${data.name}`);
+            setTimeout(() => openMapManager(), 100); 
+        });
+    };
+
+    const list = document.createElement('div');
+    list.style.maxHeight = '300px'; list.style.overflowY = 'auto';
+
+    gameData.maps.forEach(m => {
+        const isActive = m.id === gameData.activeMapId;
+        const row = document.createElement('div');
+        row.className = 'panel';
+        row.style.marginBottom = '10px';
+        row.style.background = isActive ? '#e3f2fd' : 'white';
+        row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
+        row.style.textAlign = 'left';
+        
+        row.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center">
+                <div>
+                    <strong>${m.name}</strong> ${isActive ? '✅' : ''}<br>
+                    <small style="opacity:0.7">Météo: ${m.weather || 'Normal'}</small>
+                </div>
+                <div style="width:50px; height:30px; border:1px solid #ccc; margin:0 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#eee;">
+                     <img src="${m.url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='🗺️'">
+                </div>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end">
+                ${!isActive ? `<button class="btn btn-primary" style="font-size:0.7rem; padding:5px" id="load-${m.id}">Charger</button>` : ''}
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:orange" id="edit-${m.id}">✏️</button>
+                <button class="btn" style="font-size:0.7rem; padding:5px; background:red" id="del-${m.id}">🗑️</button>
+            </div>
+        `;
+
+        if(!isActive) {
+            row.querySelector(`#load-${m.id}`).onclick = () => {
+                gameData.activeMapId = m.id;
+                gameData.config.mapUrl = m.url;
+                saveData(`Changement de carte : ${m.name}`);
+                modal.style.display = 'none';
+            };
+        }
+
+        row.querySelector(`#edit-${m.id}`).onclick = () => {
             modal.style.display = 'none';
-            openFormModal('Nouvelle Carte', [
-                { name: 'name', label: 'Nom', value: '' },
-                { name: 'url', label: 'Image', type:'image', value: '' },
-                { name: 'weather', label: 'Météo', type: 'select', options: [{value:'none', label:'☀️'},{value:'rain', label:'🌧️'},{value:'snow', label:'❄️'},{value:'fog', label:'🌫️'},{value:'night', label:'🌑'},{value:'sepia', label:'📜'}], value: 'none' }
+            openFormModal(`Modifier ${m.name}`, [
+                { name: 'name', label: 'Nom', value: m.name },
+                { name: 'url', label: 'URL', value: m.url, type:'image' },
+                { name: 'weather', label: 'Météo', type: 'select', options: weatherOptions, value: m.weather || 'none' }, // Champ modifiable
+                { name: 'desc', label: 'Description', type: 'textarea', value: m.desc || '' }
             ], (data) => {
-                gameData.maps.push({ id: generateId(), name: data.name, url: data.url||'./assets/map.png', weather: data.weather });
+                m.name = data.name; 
+                m.url = data.url && data.url.trim() !== '' ? data.url : './assets/map.png';
+                m.weather = data.weather;
+                m.desc = data.desc;
                 saveData();
-                setTimeout(openMapManager, 100); // Réouvre après création
+                setTimeout(() => openMapManager(), 100);
             });
         };
 
-        const list = document.createElement('div');
-        list.style.maxHeight = '400px'; list.style.overflowY = 'auto';
-
-        gameData.maps.forEach(m => {
-            const isActive = m.id === gameData.activeMapId;
-            const row = document.createElement('div');
-            row.className = 'panel';
-            row.style.marginBottom = '10px';
-            row.style.background = isActive ? '#e3f2fd' : 'rgba(255,255,255,0.1)';
-            row.style.border = isActive ? '2px solid var(--cr-blue)' : '1px solid #ccc';
-            
-            // On crée le HTML avec un SELECT direct pour la météo
-            const weathers = {none:'☀️', rain:'🌧️', snow:'❄️', fog:'🌫️', night:'🌑', sepia:'📜'};
-            let options = '';
-            for(let k in weathers) {
-                options += `<option value="${k}" ${m.weather === k ? 'selected' : ''}>${weathers[k]}</option>`;
-            }
-
-            row.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                    <strong>${m.name} ${isActive ? '✅' : ''}</strong>
-                    <img src="${m.url}" style="width:50px; height:30px; object-fit:cover; border:1px solid #888;">
-                </div>
-                <div style="display:flex; gap:5px; justify-content:flex-end; align-items:center;">
-                    <select class="weather-quick-select" data-id="${m.id}" style="padding:2px; font-size:0.8rem; width:auto; margin:0;">
-                        ${options}
-                    </select>
-                    
-                    ${!isActive ? `<button class="btn btn-primary btn-sm" id="load-${m.id}" style="font-size:0.7rem; padding:4px;">Charger</button>` : ''}
-                    <button class="btn btn-danger btn-sm" id="del-${m.id}" style="background:red; font-size:0.7rem; padding:4px;">🗑️</button>
-                </div>
-            `;
-
-            // Écouteur pour la météo (Changement immédiat sans fermer)
-            row.querySelector('.weather-quick-select').onchange = (e) => {
-                m.weather = e.target.value;
-                saveData(); // Sauvegarde silencieuse
-                // Pas besoin de tout recharger, c'est déjà visuellement à jour
-            };
-
-            if(!isActive) {
-                row.querySelector(`#load-${m.id}`).onclick = () => {
-                    gameData.activeMapId = m.id;
-                    gameData.config.mapUrl = m.url;
-                    saveData();
-                    renderList(); // Recharge la liste pour afficher le ✅
-                };
-            }
-
-            row.querySelector(`#del-${m.id}`).onclick = () => {
-                if(gameData.maps.length <= 1) return alert("Gardez une carte.");
-                if(confirm('Supprimer ?')) {
-                    gameData.maps = gameData.maps.filter(x => x.id !== m.id);
-                    if(isActive) {
-                        gameData.activeMapId = gameData.maps[0].id;
-                        gameData.config.mapUrl = gameData.maps[0].url;
-                    }
-                    saveData();
-                    renderList();
+        row.querySelector(`#del-${m.id}`).onclick = () => {
+            if(gameData.maps.length <= 1) return alert("Impossible de supprimer la dernière carte !");
+            if(confirm('Supprimer ?')) {
+                gameData.maps = gameData.maps.filter(x => x.id !== m.id);
+                if(isActive) {
+                    gameData.activeMapId = gameData.maps[0].id;
+                    gameData.config.mapUrl = gameData.maps[0].url;
                 }
-            };
+                saveData();
+                openMapManager(); 
+            }
+        };
+        list.appendChild(row);
+    });
 
-            list.appendChild(row);
-        });
-        container.appendChild(list);
-    };
-
-    renderList();
+    container.appendChild(list);
+    saveBtn.style.display = 'none';
     modal.style.display = 'flex';
-    
     modal.querySelector('.close-form').onclick = () => {
-        saveBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'inline-block'; 
         modal.style.display = 'none';
-        render(); 
     };
 }
 
@@ -735,7 +743,7 @@ function renderPlayersModule(container) {
         openFormModal('Créer Personnage', [
             { name: 'name', label: 'Nom', value: '' },
             { name: 'type', label: 'Type', type: 'select', options: [{value:'player', label:'Joueur'}, {value:'npc', label:'PNJ'}], value: 'player' },
-            { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/cards/card-champion-unknown.png' },
+            { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/king.png' },
             { name: 'desc', label: 'Description', type: 'textarea', value: '' }
         ], (data) => {
             const newChar = { id: generateId(), name: data.name, avatar: data.avatar, desc: data.desc, deck: [], inventory: '', x: 50, y: 50 };
@@ -812,7 +820,7 @@ function renderPlayersModule(container) {
         row.querySelector(`#edit-${char.id}`).onclick = () => {
             openFormModal(`Éditer ${char.name}`, [
                 { name: 'name', label: 'Nom', value: char.name },
-                { name: 'avatar', label: 'Avatar', type: 'image', value: './assets/cards/card-champion-unknown.png'},
+                { name: 'avatar', label: 'Avatar', type: 'image', value: char.avatar },
                 { name: 'desc', label: 'Description', type: 'textarea', value: cleanDesc },
                 { name: 'inventory', label: 'Inventaire', type: 'textarea', value: char.inventory || '' }
             ], (data) => {
@@ -1554,6 +1562,8 @@ function renderJournalModule(container) {
 
     container.appendChild(list);
 }
+
+// --- FONCTION SPÉCIALE POUR LE FORMULAIRE JOURNAL (Avec Checkboxes) ---
 // --- FONCTION SPÉCIALE JOURNAL (VERSION LARGE) ---
 function openJournalModal(title, initialData, onSave) {
     const modal = document.getElementById('modal-form');
@@ -1652,147 +1662,62 @@ function openJournalModal(title, initialData, onSave) {
 }
 
 function renderPlayerStats(container, p) {
-    // 1. DÉGRADÉ ROYAL & AVATAR (C'est ici que ça change tout)
-    const header = document.createElement('div');
-    // IMPORTANT : On utilise la nouvelle classe CSS
-	header.className = 'mobile-profile-header'; 
-
-    header.innerHTML = `
-        <div style="position:relative; display:inline-block;">
-            <img src="${p.avatar}" class="mobile-avatar" onerror="this.src='https://placehold.co/100'">
-            <div style="position:absolute; bottom:-5px; right:-5px; background:#3498db; color:white; font-family:'Lilita One', sans-serif; padding:2px 6px; border-radius:6px; border:2px solid white; font-size:0.7rem;">NV.1</div>
-        </div>
-        <div class="mobile-name">${p.name}</div>
-        <div style="display:flex; justify-content:center; flex-wrap:wrap; gap:5px; margin-top:5px;">${resourcesHtml}</div>
-    `;
-    container.appendChild(header);
-
-    // 2. INVENTAIRE
-    const invSection = document.createElement('div');
-    invSection.innerHTML = `<h3 class="mobile-section-title">🎒 Inventaire</h3>`;
-    const invBox = document.createElement('div');
-    invBox.style.cssText = 'background:rgba(0,0,0,0.4); border:1px solid #4a6fa5; border-radius:10px; padding:15px; color:white; min-height:50px; white-space:pre-wrap;';
-    invBox.innerText = p.inventory || 'Sac vide.';
-    invSection.appendChild(invBox);
-    container.appendChild(invSection);
-
-    // 3. DECK
-    const deckSection = document.createElement('div');
-    deckSection.innerHTML = `<h3 class="mobile-section-title">⚔️ Deck de Combat</h3>`;
-    const deckGrid = document.createElement('div');
-    deckGrid.className = 'card-grid';
-    deckGrid.style.cssText = 'display:grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap:10px;';
-
-    const userDeck = Array.isArray(p.deck) ? p.deck : [];
-    if (userDeck.length > 0) {
-        userDeck.forEach(cardId => {
-            const c = gameData.cards.find(x => x.id === cardId);
-            if (c) {
-                const cardEl = document.createElement('div');
-                cardEl.className = 'clash-card';
-                cardEl.style.cssText = 'background:#2c3e50; border-color:#4a6fa5; box-shadow:0 4px 8px rgba(0,0,0,0.4); cursor:pointer; padding:4px;';
-                cardEl.innerHTML = `
-                    <div class="cost" style="width:20px; height:20px; line-height:18px; font-size:12px;">${c.cost}</div>
-                    <img src="${c.img}" style="border-radius:4px; width:100%; height:auto;" onerror="this.src='https://placehold.co/80'">
-                    <h4 style="color:#fcc22d; font-family:'Lilita One', sans-serif; font-size:0.7rem; margin:4px 0 0 0;">${c.name}</h4>
-                `;
-                cardEl.onclick = () => { if(confirm(`Jouer ${c.name} ?`)) playCardAction(p.name, c); };
-                deckGrid.appendChild(cardEl);
-            }
+    // 1. En-tête Profil
+    let pillsHtml = '';
+    if (gameData.resourceTypes) {
+        gameData.resourceTypes.forEach(res => {
+            const val = p[res.id] !== undefined ? p[res.id] : 0;
+            pillsHtml += `<div class="res-pill"><div class="res-icon" style="background:${res.color}; color:white">${res.icon}</div><span style="color:${res.color}; filter:brightness(1.5)">${val}</span></div>`;
         });
-    } else {
-        deckGrid.innerHTML = '<p style="color:#aaa; text-align:center; width:100%;">Aucune carte.</p>';
     }
-    deckSection.appendChild(deckGrid);
-    container.appendChild(deckSection);
-}
-
-    // 2. RENDU DU HEADER "CLASH STYLE"
-    container.innerHTML = ''; // On nettoie le conteneur
     
-    // Bloc En-tête (Avatar + Nom + Ressources)
-    const header = document.createElement('div');
-    header.className = 'mobile-profile-header';
-    header.innerHTML = `
-        <div style="position:relative; display:inline-block;">
-            <img src="${p.avatar}" class="mobile-avatar" onerror="this.src='https://placehold.co/100'">
-            <div style="position:absolute; bottom:-10px; right:-10px; background:#3498db; color:white; font-family:'Lilita One', sans-serif; padding:2px 8px; border-radius:8px; border:2px solid white; font-size:0.8rem;">
-                NIV. 1
-            </div>
-        </div>
-        <div class="mobile-name">${p.name}</div>
-        <div style="display:flex; justify-content:center; flex-wrap:wrap; gap:5px; margin-top:5px;">
-            ${resourcesHtml}
-        </div>
-        <div style="font-size:0.9rem; color:#b0c4de; margin-top:10px; font-style:italic;">
-            "${p.desc || 'Prêt au combat.'}"
-        </div>
-    `;
+    const header = document.createElement('div'); 
+    header.className = 'profile-header';
+    header.innerHTML = `<img src="${p.avatar}" class="profile-avatar" onerror="this.src='https://placehold.co/80'"><div class="profile-name">${p.name}</div><div class="resource-row" style="flex-wrap:wrap">${pillsHtml}</div><div style="margin-top:10px; font-size:0.8rem; font-style:italic; opacity:0.8">${p.desc || ''}</div>`;
     container.appendChild(header);
 
-    // 3. INVENTAIRE
-    const invSection = document.createElement('div');
-    invSection.innerHTML = `<h3 class="mobile-section-title">🎒 Inventaire</h3>`;
+    const dashboard = document.createElement('div'); 
+    dashboard.className = 'player-dashboard';
     
-    const invBox = document.createElement('div');
-    invBox.style.background = 'rgba(0,0,0,0.3)';
-    invBox.style.border = '1px solid #4a6fa5';
-    invBox.style.borderRadius = '12px';
-    invBox.style.padding = '15px';
-    invBox.style.color = '#fff';
-    invBox.style.minHeight = '60px';
-    invBox.style.whiteSpace = 'pre-wrap'; // Garde les retours à la ligne
-    invBox.innerText = p.inventory || 'Votre sac est vide.';
-    invSection.appendChild(invBox);
-    container.appendChild(invSection);
+    // 2. Inventaire
+    dashboard.innerHTML += `<h3 style="color:var(--cr-wood); margin-top:20px;">🎒 Inventaire</h3>`;
+    const invInput = document.createElement('textarea'); 
+    invInput.className = 'inventory-box';
+    invInput.value = p.inventory || 'Votre sac est vide.'; 
+    invInput.readOnly = true; 
+    invInput.style.cssText = 'background:#e6e6e6; color:#555; cursor:default; outline:none;';
+    dashboard.appendChild(invInput);
 
-    // 4. DECK DE CARTES
-    const deckSection = document.createElement('div');
-    deckSection.style.marginTop = '20px';
-    deckSection.innerHTML = `<h3 class="mobile-section-title">⚔️ Deck de Combat</h3>`;
+    // 3. Deck (Correction ici)
+    dashboard.innerHTML += `<h3 style="color:var(--cr-blue); margin-top:10px;">⚔️ Deck</h3><p class="play-hint">Clique pour jouer !</p>`;
+    const deckGrid = document.createElement('div'); 
+    deckGrid.className = 'card-grid player-deck';
     
-    const deckGrid = document.createElement('div');
-    deckGrid.className = 'card-grid'; // Utilise ta classe CSS existante
-    
-    // Style inline pour forcer le look mobile ici
-    deckGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(90px, 1fr))';
-    deckGrid.style.gap = '15px';
-
+    // Sécurité : on s'assure que p.deck est un tableau
     const userDeck = Array.isArray(p.deck) ? p.deck : [];
 
-    if (userDeck.length > 0) {
+    if(userDeck.length === 0) {
+        deckGrid.innerHTML = '<p style="opacity:0.5; width:100%">Coffre vide.</p>';
+    } else {
         userDeck.forEach(cardId => {
+            // On cherche la carte dans la base
             const c = gameData.cards.find(x => x.id === cardId);
-            if (c) {
-                const cardEl = document.createElement('div');
-                cardEl.className = 'clash-card';
-                // Override CSS pour le mobile
-                cardEl.style.background = '#2c3e50';
-                cardEl.style.borderColor = '#4a6fa5';
-                cardEl.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-                
-                cardEl.innerHTML = `
-                    <div class="cost" style="width:24px; height:24px; line-height:22px; font-size:14px;">${c.cost}</div>
-                    <img src="${c.img}" onerror="this.src='https://placehold.co/80'" style="border-radius:4px;">
-                    <h4 style="color:#fcc22d; font-family:'Lilita One', sans-serif; font-size:0.8rem; margin-top:5px;">${c.name}</h4>
-                `;
-                
-                // Action au clic (Jouer la carte)
-                cardEl.onclick = () => {
-                   if(confirm(`Jouer la carte ${c.name} ?`)) {
-                       playCardAction(p.name, c);
-                   }
+            
+            // On n'affiche QUE si la carte existe encore
+            if(c) {
+                const el = document.createElement('div'); 
+                el.className = 'clash-card';
+                el.innerHTML = `<div class="cost">${c.cost}</div><img src="${c.img}" onerror="this.src='https://placehold.co/100?text=?'"><h4>${c.name}</h4>`;
+                el.onclick = () => { 
+                    if(confirm(`Jouer "${c.name}" ?`)) playCardAction(p.name, c); 
                 };
-                deckGrid.appendChild(cardEl);
+                deckGrid.appendChild(el);
             }
         });
-    } else {
-        deckGrid.innerHTML = '<p style="color:#888; text-align:center; width:100%; font-style:italic">Aucune carte équipée.</p>';
     }
-
-    deckSection.appendChild(deckGrid);
-    container.appendChild(deckSection);
-
+    dashboard.appendChild(deckGrid);
+    container.appendChild(dashboard);
+}
 
 // Fonction pour "Jouer" une carte (Envoyer dans le chat)
 function playCardAction(playerName, card) {
@@ -1887,55 +1812,64 @@ function showQRCode() {
     generateQR();
 }
 
-// --- GESTIONNAIRE DE DECK (CORRIGÉ & PERSISTANT) ---
+// --- GESTIONNAIRE DE DECK (CORRIGÉ & STABLE) ---
 function openDeckManager(entityArg) {
     const modal = document.getElementById('modal-form');
-    // On agrandit la fenêtre
     modal.querySelector('.modal-content').classList.add('modal-xl'); 
     
     const container = document.getElementById('form-fields');
     const saveBtn = document.getElementById('btn-form-save');
     
-    // On cache le bouton sauvegarder (car la sauvegarde est automatique à chaque clic)
-    saveBtn.style.display = 'none'; 
-    modal.style.display = 'flex';
-
-    // On stocke l'ID pour retrouver le perso à chaque rafraichissement
+    // On garde l'ID pour retrouver l'entité fraîche à chaque fois
     const targetId = entityArg.id;
 
-    // Fonction interne de rendu
+    saveBtn.style.display = 'none'; // Pas de bouton save, c'est instantané
+    modal.style.display = 'flex';
+
+    // Fonction de rendu interne
     const renderManager = () => {
-        // 1. On recharge les données fraîches
+        // 1. On récupère l'entité fraîche via la fonction globale
         const freshEntity = findEntityById(targetId);
+        
+        // Si l'entité n'existe plus, on ferme
         if (!freshEntity) return modal.style.display = 'none';
 
-        document.getElementById('form-title').innerText = `Deck de ${freshEntity.name}`;
+        // Titre dynamique
+        const typeLabel = gameData.players.some(p => p.id === targetId) ? 'Joueur' : 'PNJ';
+        document.getElementById('form-title').innerText = `Deck de ${freshEntity.name} (${typeLabel})`;
+        
         container.innerHTML = ''; 
 
-        // --- SECTION 1 : INVENTAIRE ACTUEL ---
+        // --- ZONE 1 : DECK ACTUEL ---
         const currentSection = document.createElement('div');
-        currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:#3498db">Inventaire (Cliquer pour retirer)</h4>';
+        currentSection.innerHTML = '<h4 style="margin:0 0 5px 0; color:var(--cr-blue)">Inventaire (Cliquer pour retirer)</h4>';
+        
         const currentList = document.createElement('div');
         currentList.className = 'deck-manager-section mini-card-grid';
         
-        if (!freshEntity.deck) freshEntity.deck = [];
+        if (!freshEntity.deck) freshEntity.deck = []; // Sécurité
 
         if (freshEntity.deck.length === 0) {
-            currentList.innerHTML = '<p style="color:#888; width:100%">Vide.</p>';
+            currentList.innerHTML = '<p style="font-size:0.8rem; color:#888; width:100%">Inventaire vide.</p>';
         } else {
             freshEntity.deck.forEach((cardId, index) => {
                 const card = gameData.cards.find(c => c.id === cardId);
                 if (card) {
                     const el = document.createElement('div');
                     el.className = 'mini-card';
-                    el.style.borderColor = '#ff4d4d';
-                    el.innerHTML = `<img src="${card.img}"><div style="font-size:0.6rem">${card.name}</div>`;
+                    el.style.borderColor = '#ff4d4d'; // Rouge léger
+                    el.title = "Retirer du deck";
+                    el.innerHTML = `
+                        <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
+                        <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
+                        <div class="action-overlay" style="background:rgba(255,0,0,0.3)">✖</div>
+                    `;
                     
-                    // --- ACTION : SUPPRIMER ---
+                    // --- CORRECTION ICI ---
                     el.onclick = () => {
-                        freshEntity.deck.splice(index, 1); // Enlève la carte
-                        renderManager(); // Rafraîchit l'affichage tout de suite
-                        saveData(); // Sauvegarde en arrière-plan
+                        freshEntity.deck.splice(index, 1); 
+                        renderManager(); 
+                        syncGameData(gameData); // Appel direct (sans window.)
                     };
                     currentList.appendChild(el);
                 }
@@ -1944,41 +1878,52 @@ function openDeckManager(entityArg) {
         currentSection.appendChild(currentList);
         container.appendChild(currentSection);
 
-        // --- SECTION 2 : BIBLIOTHÈQUE ---
-        const libSection = document.createElement('div');
-        libSection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:#2ecc71">Ajouter (Cliquer pour donner)</h4>';
-        const libList = document.createElement('div');
-        libList.className = 'deck-manager-section mini-card-grid';
+        // --- ZONE 2 : BIBLIOTHÈQUE ---
+        const librarySection = document.createElement('div');
+        librarySection.innerHTML = '<h4 style="margin:10px 0 5px 0; color:green">Ajouter (Cliquer pour donner)</h4>';
+        
+        const libraryList = document.createElement('div');
+        libraryList.className = 'deck-manager-section mini-card-grid';
         
         gameData.cards.forEach(card => {
             const el = document.createElement('div');
             el.className = 'mini-card';
-            el.style.borderColor = '#2ecc71';
-            el.innerHTML = `<img src="${card.img}"><div style="font-size:0.6rem">${card.name}</div>`;
+            el.style.borderColor = '#4caf50'; // Vert
+            el.title = "Ajouter au deck";
+            el.innerHTML = `
+                <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/50?text=?'">
+                <div style="font-size:0.6rem; padding:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${card.name}</div>
+                <div class="action-overlay" style="background:rgba(0,255,0,0.3)">➕</div>
+            `;
             
-            // --- ACTION : AJOUTER ---
+            // --- CORRECTION ICI ---
             el.onclick = () => {
-                freshEntity.deck.push(card.id); // Ajoute la carte
-                renderManager(); // Rafraîchit l'affichage tout de suite
-                saveData(); // Sauvegarde en arrière-plan
+                freshEntity.deck.push(card.id);
+                renderManager();
+                syncGameData(gameData); // Appel direct (sans window.)
             };
-            libList.appendChild(el);
+            libraryList.appendChild(el);
         });
-        libSection.appendChild(libList);
-        container.appendChild(libSection);
+        
+        librarySection.appendChild(libraryList);
+        container.appendChild(librarySection);
     };
 
-    // Premier affichage
+    // Lancement initial
     renderManager();
 
-    // Gestion de la fermeture propre (croix rouge)
+   // Gestion fermeture
     modal.querySelector('.close-form').onclick = () => {
         saveBtn.style.display = 'inline-block';
+        
+        // ON RETIRE LA CLASSE XL ICI
         modal.querySelector('.modal-content').classList.remove('modal-xl'); 
+        
         modal.style.display = 'none';
-        render(); // Rafraîchissement global final
+        render(); 
     };
 }
+
 
 // Remplace la fonction updateLocalData existante
 function updateLocalData(newData) {
@@ -2016,66 +1961,33 @@ function updateLocalData(newData) {
     render();
 }
 
-// --- ANIMATION COFFRE (CORRIGÉE : TIMING & CADRAGE) ---
+// Remplace la fonction triggerChestAnimation existante
 function triggerChestAnimation(newCardId) {
     const overlay = document.getElementById('chest-overlay');
-    const container = overlay.querySelector('.chest-anim-container');
+    const display = document.getElementById('new-card-display');
     
     const card = gameData.cards.find(c => c.id === newCardId);
+    
     if(!card) return;
 
-    const chestUrl = "https://media.tenor.com/J1y9sWv7tSAAAAAC/clash-royale-legendary-chest.gif";
-
-    // On prépare le HTML. Note les deux IDs séparés : "phase-coffre" et "phase-carte"
-    container.innerHTML = `
-        <div class="light-burst"></div>
-        
-        <div id="phase-coffre" style="display:block; text-align:center;">
-            <img src="${chestUrl}?t=${new Date().getTime()}" 
-                 style="width:250px; height:auto; filter: drop-shadow(0 0 20px gold);">
+    display.innerHTML = `
+        <div class="clash-card" style="transform: scale(1.1); box-shadow: 0 0 30px white; margin: 0 auto; background: white;">
+            <div class="cost">${card.cost}</div>
+            <img src="${card.img}" onerror="this.onerror=null;this.src='https://placehold.co/100x120?text=?'">
+            <h4>${card.name}</h4>
         </div>
-
-        <div id="phase-carte" style="display:none; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%;">
-            
-            <div class="clash-card" style="transform: scale(1.5); background:white; margin-bottom:30px; box-shadow: 0 0 50px gold; border: 4px solid gold;">
-                <div class="cost">${card.cost}</div>
-                <img src="${card.img}" onerror="this.src='./assets/epee.png'; this.onerror=null;" style="min-height:100px; object-fit:contain;">
-                <h4>${card.name}</h4>
-            </div>
-
-            <div style="color:#ffd700; text-shadow:0 3px 6px black; text-align:center;">
-                <div style="font-size:1.5rem; margin-bottom:5px; color:white;">NOUVELLE CARTE !</div>
-                <strong style="font-size:2.5rem; text-transform:uppercase; letter-spacing:2px;">${card.name}</strong>
-            </div>
-            
-            <small style="color:white; margin-top:20px; opacity:0.8;">(Cliquez pour fermer)</small>
-        </div>
+        <p style="color:#ffd700; text-shadow:0 2px 0 black; line-height:1.4;">
+            Vous avez obtenu :<br><strong style="font-size:1.2rem; text-transform:uppercase">${card.name}</strong>
+        </p>
     `;
     
-    // 1. On affiche l'overlay global
     overlay.classList.remove('hidden');
-
-    // 2. TIMING : On attend 2.5 secondes que le coffre s'ouvre
+    
     setTimeout(() => {
-        const divCoffre = document.getElementById('phase-coffre');
-        const divCarte = document.getElementById('phase-carte');
-        
-        if(divCoffre && divCarte) {
-            divCoffre.style.display = 'none'; // On cache le coffre
-            divCarte.style.display = 'flex';  // On affiche la carte
-            
-            // Petit effet "Pop"
-            divCarte.style.animation = "popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
-        }
-    }, 2500); // 2500ms = 2.5 secondes
-
-    // Clic pour fermer (uniquement possible après l'apparition)
-    overlay.onclick = () => {
-        // On vérifie si la carte est déjà affichée avant de laisser fermer
-        if(document.getElementById('phase-carte').style.display === 'flex') {
-            overlay.classList.add('hidden');
-        }
-    };
+        overlay.classList.add('hidden');
+    }, 5000);
+    
+    overlay.onclick = () => overlay.classList.add('hidden');
 }
 
 // 8. SYSTÈME (SAUVEGARDE & IMPORT)
